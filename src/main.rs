@@ -1,9 +1,11 @@
 mod backend;
 mod components;
+mod models;
 mod notica_component;
 
 use dioxus::prelude::*;
 
+use components::settings::SettingsPage;
 use notica_component::NoticaApp;
 
 fn main() {
@@ -13,6 +15,9 @@ fn main() {
                 // Urls are relative to your Cargo.toml file
                 href: asset!("/assets/tailwind.css"),
             }
+            document::Stylesheet {
+                href: asset!("/assets/dx-components-theme.css"),
+            }
             Router::<Route> {}
 
         }
@@ -20,14 +25,29 @@ fn main() {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Routable)]
-enum Route {
+pub enum Route {
     #[route("/")]
     MainView,
+    #[route("/settings")]
+    SettingsView,
 }
 
 #[component]
 fn MainView() -> Element {
     rsx! {
-        NoticaApp {}
+        div { class: "mx-auto max-w-3xl px-4 py-8",
+            NoticaApp {}
+        }
+    }
+}
+
+#[component]
+fn SettingsView() -> Element {
+    rsx! {
+        div { class: "min-h-screen bg-gray-100",
+            div { class: "mx-auto max-w-3xl px-4 py-8",
+                SettingsPage {}
+            }
+        }
     }
 }
