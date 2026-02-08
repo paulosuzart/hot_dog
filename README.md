@@ -1,25 +1,26 @@
-# Development
+# Hot Dog
 
-Your new bare-bones project includes minimal organization with a single `main.rs` file and a few assets.
+A simple parenting app for tracking kids' points/notes over recurring cycles. Parents can award or deduct points based on completed tasks or behavior. Points reset at the end of each cycle (e.g., monthly) and can be used as a reward system.
 
-```
-project/
-├─ assets/ # Any assets that are used by the app should be placed here
-├─ src/
-│  ├─ main.rs # main.rs is the entry point to your application and currently contains all components for the app
-├─ Cargo.toml # The Cargo.toml file defines the dependencies and feature flags for your project
-```
+Built as an exploration of [Dioxus](https://dioxuslabs.com/), [Turso](https://turso.tech/), and [Fly.io](https://fly.io/).
 
-### Serving Your App
+## Local Development
 
-Run the following command in the root of your project to start developing with the default platform:
+### Prerequisites
+
+- [Rust](https://rustup.rs/)
+- [Dioxus CLI](https://dioxuslabs.com/learn/0.6/getting_started): `cargo install dioxus-cli`
+- A Turso database (or local libSQL instance)
+
+### Environment Variables
 
 ```bash
-dx serve
+export TURSO_DATABASE_URL="<your-turso-db-url>"
+export TURSO_AUTH_TOKEN="<your-turso-auth-token>"
 ```
 
-To run for a different platform, use the `--platform platform` flag. E.g.
+### Run
+
 ```bash
-dx serve --platform desktop
+dx serve --platform web
 ```
-
