@@ -1,7 +1,15 @@
 use crate::models::GetKidsResponse;
 #[cfg(feature = "server")]
 use crate::models::{CountAggregation, CountMetadata, Kid};
+
+#[cfg(feature = "server")]
+use crate::backend::turso::get_db;
+
+#[cfg(feature = "server")]
+use libsql::de;
+
 use dioxus::prelude::*;
+
 
 #[server]
 pub async fn decrement_kid_count(kid_id: u32) -> Result<(), ServerFnError> {
@@ -19,22 +27,33 @@ pub async fn increment_kid_count(kid_id: u32) -> Result<(), ServerFnError> {
     Ok(())
 }
 
+#[derive(Debug, serde::Deserialize)]
+struct KidRow {
+    id: u32,
+    name: String,
+    created_at: String,
+}
+
 #[server]
 pub async fn get_kids() -> Result<GetKidsResponse, ServerFnError> {
-    let kids = vec![
-        Kid {
-            name: "Paulo".to_string(),
-            id: 0,
-            count: 3,
-            latest_note: chrono::Utc::now(),
-        },
-        Kid {
-            name: "Maria".to_string(),
-            id: 1,
-            count: 5,
-            latest_note: chrono::Utc::now(),
-        },
-    ];
+    let conn = get_db().await;
+
+    let mut rows = conn.query("SELECT id, name, created_at FROM kids", ())
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    let mut kids = Vec::new();
+    while let Some(row) = rows.next().await.map_err(|e| ServerFnError::new(e.to_string()))? {
+        let count = 5 as u8;
+        let kid_row = de::from_row::<KidRow>(&row).map_err(|e| ServerFnError::new(e.to_string()))?;
+        kids.push(Kid {
+            id: kid_row.id,
+            name: kid_row.name,
+            count,
+            // temporary. This is not the latest note.
+            latest_note: chrono::NaiveDateTime::parse_from_str(&kid_row.created_at, "%Y-%m-%d %H:%M:%S").unwrap()
+        });
+    }
 
     let response = GetKidsResponse {
         kids,

@@ -1,4 +1,4 @@
-use chrono::DateTime;
+use chrono::NaiveDateTime;
 use dioxus::fullstack::serde::Serialize;
 use serde::Deserialize;
 
@@ -55,5 +55,5 @@ pub struct Kid {
     pub name: String,
     pub id: u32,
     pub count: u8,
-    pub latest_note: DateTime<chrono::Utc>,
+    pub latest_note: NaiveDateTime,
 }
