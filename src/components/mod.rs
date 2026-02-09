@@ -3,3 +3,4 @@ pub mod button;
 pub mod card;
 pub mod kid_card;
 pub mod settings;
+pub mod popover;

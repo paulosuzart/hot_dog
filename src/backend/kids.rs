@@ -81,6 +81,36 @@ async fn get_count_metadata() -> Result<SettingsRow, ServerFnError> {
     }
 }
 
+/// Fetches the current granularity setting as a string (DAILY, WEEKLY, MONTHLY, YEARLY).
+#[server]
+pub async fn get_granularity() -> Result<String, ServerFnError> {
+    let settings = get_count_metadata().await?;
+    Ok(settings.granularity)
+}
+
+#[cfg(feature = "server")]
+const ALLOWED_GRANULARITIES: &[&str] = &["DAILY", "WEEKLY", "MONTHLY", "YEARLY"];
+
+/// Updates the granularity setting in the database.
+/// Accepts: "DAILY", "WEEKLY", "MONTHLY", "YEARLY".
+#[server]
+pub async fn update_granularity(granularity: String) -> Result<(), ServerFnError> {
+
+    if !ALLOWED_GRANULARITIES.contains(&granularity.as_str()) {
+        return Err(ServerFnError::new(format!(
+            "Invalid granularity: '{granularity}'. Must be one of: {ALLOWED_GRANULARITIES:?}"
+        )));
+    }
+    let conn = get_db().await;
+    conn.execute(
+        "UPDATE settings SET granularity = ?1 WHERE id = 1",
+        libsql::params![granularity],
+    )
+    .await
+    .map_err(|e| ServerFnError::new(e.to_string()))?;
+    Ok(())
+}
+
 /// Fetches the list of kids along with their count metadata.
 /// Intended to be used at the home screen
 #[server]
