@@ -26,10 +26,47 @@ pub fn NoticaApp() -> Element {
     rsx! {
         match kids_snapshot {
             KidsResponseWrapper::NoKids => rsx! {
-                div { class: "p-6",
-                    div { class: "overflow-x-auto",
-                        p { "No kids found." }
-                        Button { "Add Kid" }
+                // ── Empty state ──
+                div { style: "border: 1px solid #e5e7eb; border-radius: 0.75rem; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05); padding: 3rem 1.5rem; text-align: center;",
+                    // Empty icon
+                    div { style: "margin: 0 auto 1rem; width: 3rem; height: 3rem; border-radius: 50%; background-color: #f3f4f6; display: flex; align-items: center; justify-content: center;",
+                        svg {
+                            xmlns: "http://www.w3.org/2000/svg",
+                            fill: "none",
+                            view_box: "0 0 24 24",
+                            stroke_width: "1.5",
+                            stroke: "#9ca3af",
+                            style: "width: 1.5rem; height: 1.5rem;",
+                            path {
+                                stroke_linecap: "round",
+                                stroke_linejoin: "round",
+                                d: "M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z",
+                            }
+                        }
+                    }
+                    p { style: "font-size: 1rem; font-weight: 600; color: #111827; margin-bottom: 0.25rem;",
+                        "No kids yet"
+                    }
+                    p { style: "font-size: 0.875rem; color: #9ca3af; margin-bottom: 1.25rem;",
+                        "Head to settings to add your first kid."
+                    }
+                    Link {
+                        to: Route::SettingsView,
+                        style: "display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: 0.5rem; background-color: #111; color: #fff; font-size: 0.875rem; font-weight: 500; text-decoration: none; transition: background-color 0.15s;",
+                        svg {
+                            xmlns: "http://www.w3.org/2000/svg",
+                            fill: "none",
+                            view_box: "0 0 24 24",
+                            stroke_width: "2",
+                            stroke: "currentColor",
+                            style: "width: 1rem; height: 1rem;",
+                            path {
+                                stroke_linecap: "round",
+                                stroke_linejoin: "round",
+                                d: "M12 4.5v15m7.5-7.5h-15",
+                            }
+                        }
+                        "Add Kids"
                     }
                 }
             },
@@ -39,7 +76,8 @@ pub fn NoticaApp() -> Element {
                 let agg_unit = aggregation.unit_str();
 
                 rsx! {
-                    div { class: "space-y-4",
+                    // ── Kid cards ──
+                    div { style: "display: flex; flex-direction: column; gap: 0.75rem;",
                         {
                             data.kids
                                 .into_iter()
@@ -76,33 +114,39 @@ pub fn NoticaApp() -> Element {
                                 })
                         }
                     }
-                    footer { class: "mt-8 rounded-lg border border-gray-200 bg-gray-50 px-5 py-4",
-                        div { class: "flex items-center justify-between",
-                            div { class: "flex items-center gap-4",
+
+                    // ── Footer: aggregation info + settings link ──
+                    footer { style: "margin-top: 1.25rem; border-radius: 0.75rem; border: 1px solid #e5e7eb; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05); padding: 1rem 1.25rem;",
+                        div { style: "display: flex; align-items: center; justify-content: space-between;",
+                            div { style: "display: flex; align-items: center; gap: 1.25rem;",
                                 div {
-                                    p { class: "text-xs font-medium uppercase tracking-wide text-gray-400",
+                                    p { style: "font-size: 0.625rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af;",
                                         "Aggregation"
                                     }
-                                    p { class: "text-sm font-semibold text-gray-700", "{agg_label}" }
+                                    p { style: "font-size: 0.875rem; font-weight: 600; color: #374151; margin-top: 1px;",
+                                        "{agg_label}"
+                                    }
                                 }
-                                div { class: "h-8 w-px bg-gray-200" }
+                                div { style: "width: 1px; height: 1.75rem; background-color: #e5e7eb;" }
                                 div {
-                                    p { class: "text-xs font-medium uppercase tracking-wide text-gray-400",
+                                    p { style: "font-size: 0.625rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af;",
                                         "Current unit"
                                     }
-                                    p { class: "text-sm font-semibold text-gray-700", "{agg_unit}" }
+                                    p { style: "font-size: 0.875rem; font-weight: 600; color: #374151; margin-top: 1px;",
+                                        "{agg_unit}"
+                                    }
                                 }
                             }
                             Link {
                                 to: Route::SettingsView,
-                                class: "flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900",
+                                style: "display: flex; align-items: center; gap: 0.375rem; padding: 0.5rem 0.75rem; border-radius: 0.5rem; font-size: 0.8125rem; font-weight: 500; color: #6b7280; text-decoration: none; transition: all 0.15s;",
                                 svg {
                                     xmlns: "http://www.w3.org/2000/svg",
                                     fill: "none",
                                     view_box: "0 0 24 24",
                                     stroke_width: "1.5",
                                     stroke: "currentColor",
-                                    class: "h-5 w-5",
+                                    style: "width: 1.125rem; height: 1.125rem;",
                                     path {
                                         stroke_linecap: "round",
                                         stroke_linejoin: "round",
@@ -121,10 +165,9 @@ pub fn NoticaApp() -> Element {
                 }
             }
             KidsResponseWrapper::Loading => rsx! {
-                div { class: "p-6",
-                    div { class: "overflow-x-auto",
-                        p { "Loading..." }
-                    }
+                // ── Loading state ──
+                div { style: "border: 1px solid #e5e7eb; border-radius: 0.75rem; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05); padding: 3rem 1.5rem; text-align: center;",
+                    p { style: "font-size: 0.875rem; color: #9ca3af;", "Loading..." }
                 }
             },
         }

@@ -35,8 +35,10 @@ pub enum Route {
 #[component]
 fn MainView() -> Element {
     rsx! {
-        div { class: "mx-auto max-w-3xl px-4 py-8",
-            NoticaApp {}
+        div { style: "min-height: 100vh; background-color: #f3f4f6;",
+            div { style: "max-width: 520px; margin: 0 auto; padding: 2rem 1rem;",
+                NoticaApp {}
+            }
         }
     }
 }
@@ -44,8 +46,8 @@ fn MainView() -> Element {
 #[component]
 fn SettingsView() -> Element {
     rsx! {
-        div { class: "min-h-screen bg-gray-100",
-            div { class: "mx-auto max-w-3xl px-4 py-8",
+        div { style: "min-height: 100vh; background-color: #f3f4f6;",
+            div { style: "max-width: 520px; margin: 0 auto; padding: 2rem 1rem;",
                 SettingsPage {}
             }
         }
