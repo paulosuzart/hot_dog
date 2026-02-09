@@ -1,6 +1,10 @@
 use crate::models::{CountAggregation, GetKidsResponse, KidSummary};
 #[cfg(feature = "server")]
 use crate::models::{CountMetadata, Kid};
+#[cfg(feature = "server")]
+use std::collections::HashMap;
+#[cfg(feature = "server")]
+use std::sync::{LazyLock, Mutex};
 
 #[cfg(feature = "server")]
 use crate::backend::turso::get_db;
@@ -11,22 +15,42 @@ use libsql::de;
 
 use dioxus::prelude::*;
 
+#[cfg(feature = "server")]
+const ALLOWED_GRANULARITIES: &[&str] = &["DAILY", "WEEKLY", "MONTHLY", "YEARLY"];
+
+#[cfg(feature = "server")]
+const FORMAT_MAP: LazyLock<HashMap<&str, &str>> = LazyLock::new(|| {
+    HashMap::from([
+        ("DAILY", "%Y-%m-%d"),
+        ("WEEKLY", "%Y-W%W"),
+        ("MONTHLY", "%Y-%m"),
+        ("YEARLY", "%Y"),
+    ])
+});
+
 #[server]
 pub async fn decrement_kid_count(kid_id: u32) -> Result<(), ServerFnError> {
     // Here you would typically interact with your database to decrement the count for the specified kid.
     // For demonstration purposes, we'll just print the kid_id.
-    println!("Decrementing count for kid with ID: {}", kid_id);
-    Ok(())
+    log_note(kid_id, false).await
 }
 
 #[server]
 pub async fn increment_kid_count(kid_id: u32) -> Result<(), ServerFnError> {
     // Here you would typically interact with your database to increment the count for the specified kid.
     // For demonstration purposes, we'll just print the kid_id.
-    println!("Incrementing count for kid with ID: {}", kid_id);
-    Ok(())
+    log_note(kid_id, true).await
 }
 
+#[derive(Debug, serde::Deserialize)]
+#[allow(dead_code)]
+struct KidTotalRow {
+    period: String,
+    kid_id: u32,
+    total: i32,
+}
+
+#[cfg(feature = "server")]
 #[derive(Debug, serde::Deserialize)]
 #[allow(dead_code)]
 struct KidRow {
@@ -82,20 +106,32 @@ async fn get_count_metadata() -> Result<SettingsRow, ServerFnError> {
 }
 
 /// Fetches the current granularity setting as a string (DAILY, WEEKLY, MONTHLY, YEARLY).
+#[cfg(feature = "server")]
+pub async fn log_note(kid_id: u32, add: bool) -> Result<(), ServerFnError> {
+    let conn = get_db().await;
+    let quantity = if add { 1 } else { -1 };
+
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity) VALUES (?1, ?2)",
+        libsql::params![kid_id, quantity],
+    )
+    .await
+    .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    Ok(())
+}
+
+/// Fetches the current granularity setting as a string (DAILY, WEEKLY, MONTHLY, YEARLY).
 #[server]
 pub async fn get_granularity() -> Result<String, ServerFnError> {
     let settings = get_count_metadata().await?;
     Ok(settings.granularity)
 }
 
-#[cfg(feature = "server")]
-const ALLOWED_GRANULARITIES: &[&str] = &["DAILY", "WEEKLY", "MONTHLY", "YEARLY"];
-
 /// Updates the granularity setting in the database.
 /// Accepts: "DAILY", "WEEKLY", "MONTHLY", "YEARLY".
 #[server]
 pub async fn update_granularity(granularity: String) -> Result<(), ServerFnError> {
-
     if !ALLOWED_GRANULARITIES.contains(&granularity.as_str()) {
         return Err(ServerFnError::new(format!(
             "Invalid granularity: '{granularity}'. Must be one of: {ALLOWED_GRANULARITIES:?}"
@@ -209,14 +245,12 @@ pub async fn add_kid(name: String) -> Result<KidSummary, ServerFnError> {
     {
         let count: u32 = row.get(0).map_err(|e| ServerFnError::new(e.to_string()))?;
         if count >= 10 {
-            return Err(ServerFnError::new(
-                "Maximum of 10 kids allowed".to_string(),
-            ));
+            return Err(ServerFnError::new("Maximum of 10 kids allowed".to_string()));
         }
     }
 
     conn.execute(
-        "INSERT INTO kids (name, created_at) VALUES (?1, datetime('now'))",
+        "INSERT INTO kids (name, created_at) VALUES (?1, datetime('now', 'utc'))",
         libsql::params![name.clone()],
     )
     .await
@@ -250,12 +284,9 @@ pub async fn add_kid(name: String) -> Result<KidSummary, ServerFnError> {
 #[server]
 pub async fn delete_kid(kid_id: u32) -> Result<(), ServerFnError> {
     let conn = get_db().await;
-    conn.execute(
-        "DELETE FROM kids WHERE id = ?1",
-        libsql::params![kid_id],
-    )
-    .await
-    .map_err(|e| ServerFnError::new(e.to_string()))?;
+    conn.execute("DELETE FROM kids WHERE id = ?1", libsql::params![kid_id])
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
     Ok(())
 }
 

@@ -1,4 +1,6 @@
-use crate::backend::kids::{add_kid, delete_kid, get_granularity, list_kids, rename_kid, update_granularity};
+use crate::backend::kids::{
+    add_kid, delete_kid, get_granularity, list_kids, rename_kid, update_granularity,
+};
 use crate::components::button::*;
 use crate::components::popover::*;
 use crate::Route;
@@ -13,7 +15,9 @@ const GRANULARITY_OPTIONS: &[(&str, &str)] = &[
 
 /// Returns a color based on the kid's name for the avatar circle.
 fn kid_color(name: &str) -> &'static str {
-    let hash: u32 = name.bytes().fold(0u32, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u32));
+    let hash: u32 = name
+        .bytes()
+        .fold(0u32, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u32));
     let colors = [
         "#6366f1", // indigo
         "#8b5cf6", // violet
