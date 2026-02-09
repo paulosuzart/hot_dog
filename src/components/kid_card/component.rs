@@ -21,12 +21,50 @@ pub fn KidCard(
                     Button {
                         variant: ButtonVariant::Destructive,
                         onclick: move |_| on_increment.call(kid_id),
-                        "Add"
+                        svg {
+                            xmlns: "http://www.w3.org/2000/svg",
+                            width: "16",
+                            height: "16",
+                            view_box: "0 0 24 24",
+                            fill: "none",
+                            stroke: "currentColor",
+                            stroke_width: "2",
+                            stroke_linecap: "round",
+                            stroke_linejoin: "round",
+                            line {
+                                x1: "12",
+                                y1: "5",
+                                x2: "12",
+                                y2: "19",
+                            }
+                            line {
+                                x1: "5",
+                                y1: "12",
+                                x2: "19",
+                                y2: "12",
+                            }
+                        }
                     }
                     Button {
-                        variant: ButtonVariant::Secondary,
+                        style: "background-color: #026031; color: #fff;",
                         onclick: move |_| on_decrement.call(kid_id),
-                        "Remove"
+                        svg {
+                            xmlns: "http://www.w3.org/2000/svg",
+                            width: "16",
+                            height: "16",
+                            view_box: "0 0 24 24",
+                            fill: "none",
+                            stroke: "currentColor",
+                            stroke_width: "2",
+                            stroke_linecap: "round",
+                            stroke_linejoin: "round",
+                            line {
+                                x1: "5",
+                                y1: "12",
+                                x2: "19",
+                                y2: "12",
+                            }
+                        }
                     }
                 }
             }

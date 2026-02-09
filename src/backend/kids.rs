@@ -10,7 +10,6 @@ use libsql::de;
 
 use dioxus::prelude::*;
 
-
 #[server]
 pub async fn decrement_kid_count(kid_id: u32) -> Result<(), ServerFnError> {
     // Here you would typically interact with your database to decrement the count for the specified kid.
@@ -38,20 +37,30 @@ struct KidRow {
 pub async fn get_kids() -> Result<GetKidsResponse, ServerFnError> {
     let conn = get_db().await;
 
-    let mut rows = conn.query("SELECT id, name, created_at FROM kids", ())
+    let mut rows = conn
+        .query("SELECT id, name, created_at FROM kids", ())
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
 
     let mut kids = Vec::new();
-    while let Some(row) = rows.next().await.map_err(|e| ServerFnError::new(e.to_string()))? {
+    while let Some(row) = rows
+        .next()
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?
+    {
         let count = 5 as u8;
-        let kid_row = de::from_row::<KidRow>(&row).map_err(|e| ServerFnError::new(e.to_string()))?;
+        let kid_row =
+            de::from_row::<KidRow>(&row).map_err(|e| ServerFnError::new(e.to_string()))?;
         kids.push(Kid {
             id: kid_row.id,
             name: kid_row.name,
             count,
             // temporary. This is not the latest note.
-            latest_note: chrono::NaiveDateTime::parse_from_str(&kid_row.created_at, "%Y-%m-%d %H:%M:%S").unwrap()
+            latest_note: chrono::NaiveDateTime::parse_from_str(
+                &kid_row.created_at,
+                "%Y-%m-%d %H:%M:%S",
+            )
+            .map_err(|e| ServerFnError::new(e.to_string()))?,
         });
     }
 
