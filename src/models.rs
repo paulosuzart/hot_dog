@@ -60,3 +60,9 @@ pub struct Kid {
     pub count: u8,
     pub latest_note: NaiveDateTime,
 }
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct KidSummary {
+    pub id: u32,
+    pub name: String,
+}

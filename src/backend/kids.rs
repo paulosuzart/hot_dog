@@ -1,4 +1,4 @@
-use crate::models::{CountAggregation, GetKidsResponse};
+use crate::models::{CountAggregation, GetKidsResponse, KidSummary};
 #[cfg(feature = "server")]
 use crate::models::{CountMetadata, Kid};
 
@@ -156,4 +156,128 @@ pub async fn get_kids() -> Result<GetKidsResponse, ServerFnError> {
         },
     };
     Ok(response)
+}
+
+/// Fetches just the list of kids (id + name) without count metadata.
+/// Intended for the settings/management screen.
+#[server]
+pub async fn list_kids() -> Result<Vec<KidSummary>, ServerFnError> {
+    let conn = get_db().await;
+    let mut rows = conn
+        .query("SELECT id, name FROM kids ORDER BY name ASC", ())
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    let mut kids = Vec::new();
+    while let Some(row) = rows
+        .next()
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?
+    {
+        let kid =
+            de::from_row::<KidSummary>(&row).map_err(|e| ServerFnError::new(e.to_string()))?;
+        kids.push(kid);
+    }
+    Ok(kids)
+}
+
+/// Adds a new kid. Enforces a maximum of 10 kids.
+#[server]
+pub async fn add_kid(name: String) -> Result<KidSummary, ServerFnError> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err(ServerFnError::new("Name cannot be empty".to_string()));
+    }
+    if name.len() > 50 {
+        return Err(ServerFnError::new(
+            "Name too long (max 50 characters)".to_string(),
+        ));
+    }
+
+    let conn = get_db().await;
+
+    // Enforce 10-kid limit
+    let mut count_rows = conn
+        .query("SELECT COUNT(*) as cnt FROM kids", ())
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    if let Some(row) = count_rows
+        .next()
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?
+    {
+        let count: u32 = row.get(0).map_err(|e| ServerFnError::new(e.to_string()))?;
+        if count >= 10 {
+            return Err(ServerFnError::new(
+                "Maximum of 10 kids allowed".to_string(),
+            ));
+        }
+    }
+
+    conn.execute(
+        "INSERT INTO kids (name, created_at) VALUES (?1, datetime('now'))",
+        libsql::params![name.clone()],
+    )
+    .await
+    .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    // Retrieve the inserted kid
+    let mut rows = conn
+        .query(
+            "SELECT id, name FROM kids WHERE name = ?1 ORDER BY id DESC LIMIT 1",
+            libsql::params![name],
+        )
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    if let Some(row) = rows
+        .next()
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?
+    {
+        let kid =
+            de::from_row::<KidSummary>(&row).map_err(|e| ServerFnError::new(e.to_string()))?;
+        Ok(kid)
+    } else {
+        Err(ServerFnError::new(
+            "Failed to retrieve inserted kid".to_string(),
+        ))
+    }
+}
+
+/// Deletes a kid by id.
+#[server]
+pub async fn delete_kid(kid_id: u32) -> Result<(), ServerFnError> {
+    let conn = get_db().await;
+    conn.execute(
+        "DELETE FROM kids WHERE id = ?1",
+        libsql::params![kid_id],
+    )
+    .await
+    .map_err(|e| ServerFnError::new(e.to_string()))?;
+    Ok(())
+}
+
+/// Renames a kid.
+#[server]
+pub async fn rename_kid(kid_id: u32, new_name: String) -> Result<(), ServerFnError> {
+    let new_name = new_name.trim().to_string();
+    if new_name.is_empty() {
+        return Err(ServerFnError::new("Name cannot be empty".to_string()));
+    }
+    if new_name.len() > 50 {
+        return Err(ServerFnError::new(
+            "Name too long (max 50 characters)".to_string(),
+        ));
+    }
+
+    let conn = get_db().await;
+    conn.execute(
+        "UPDATE kids SET name = ?1 WHERE id = ?2",
+        libsql::params![new_name, kid_id],
+    )
+    .await
+    .map_err(|e| ServerFnError::new(e.to_string()))?;
+    Ok(())
 }
