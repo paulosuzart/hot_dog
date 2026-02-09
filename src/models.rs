@@ -4,30 +4,33 @@ use serde::Deserialize;
 
 #[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CountAggregation {
-    Monthly(u8),
-    Weekly(u8),
-    Daily(u8),
-    Yearly(u8),
+    /// month, year
+    Monthly(u32, u32),
+    /// week, month, year
+    Weekly(u32, u32, u32),
+    /// day, month, year
+    Daily(u32, u32, u32),
+    Yearly(u32),
 }
 
 impl CountAggregation {
     /// Returns the aggregation period label (e.g. "Monthly", "Weekly").
     pub fn label(&self) -> &'static str {
         match self {
-            CountAggregation::Monthly(_) => "Monthly",
-            CountAggregation::Weekly(_) => "Weekly",
-            CountAggregation::Daily(_) => "Daily",
+            CountAggregation::Monthly(_, _) => "Monthly",
+            CountAggregation::Weekly(_, _, _) => "Weekly",
+            CountAggregation::Daily(_, _, _) => "Daily",
             CountAggregation::Yearly(_) => "Yearly",
         }
     }
 
     /// Returns the current unit value for this aggregation period.
-    pub fn unit(&self) -> u8 {
+    pub fn unit_str(&self) -> String {
         match self {
-            CountAggregation::Monthly(v)
-            | CountAggregation::Weekly(v)
-            | CountAggregation::Daily(v)
-            | CountAggregation::Yearly(v) => *v,
+            CountAggregation::Monthly(m, y) => format!("{} of {}", m, y),
+            CountAggregation::Weekly(w, m, y) => format!("{} of {} {}", w, m, y),
+            CountAggregation::Daily(d, m, y) => format!("{} of {} {}", d, m, y),
+            CountAggregation::Yearly(y) => format!("{}", y),
         }
     }
 }
