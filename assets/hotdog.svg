@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <!-- Retro circular background -->
+  <circle cx="100" cy="100" r="95" fill="#fff5e6" stroke="#f59e0b" stroke-width="3" stroke-dasharray="8 4"/>
+
+  <!-- Bun bottom -->
+  <ellipse cx="100" cy="125" rx="62" ry="22" fill="#e8a954"/>
+  <ellipse cx="100" cy="122" rx="58" ry="18" fill="#f0c06e"/>
+
+  <!-- Sausage -->
+  <ellipse cx="100" cy="113" rx="55" ry="14" fill="#c0392b"/>
+  <ellipse cx="100" cy="110" rx="52" ry="12" fill="#e74c3c"/>
+  <!-- Sausage shine -->
+  <ellipse cx="85" cy="107" rx="20" ry="4" fill="#ec7063" opacity="0.6"/>
+
+  <!-- Bun top -->
+  <path d="M38,115 Q38,78 100,78 Q162,78 162,115" fill="#f0c06e" stroke="none"/>
+  <path d="M42,115 Q42,82 100,82 Q158,82 158,115" fill="#f5d48e" stroke="none"/>
+  <!-- Bun top highlight -->
+  <path d="M55,115 Q55,90 100,90 Q145,90 145,115" fill="none" stroke="#f9e4b0" stroke-width="2" opacity="0.5"/>
+  <!-- Sesame seeds -->
+  <ellipse cx="80" cy="92" rx="4" ry="2.5" fill="#fef3c7" transform="rotate(-15 80 92)"/>
+  <ellipse cx="105" cy="88" rx="4" ry="2.5" fill="#fef3c7" transform="rotate(10 105 88)"/>
+  <ellipse cx="125" cy="94" rx="4" ry="2.5" fill="#fef3c7" transform="rotate(-5 125 94)"/>
+
+  <!-- Mustard zigzag -->
+  <polyline points="50,108 58,100 66,108 74,100 82,108 90,100 98,108 106,100 114,108 122,100 130,108 138,100 146,108"
+    fill="none" stroke="#f59e0b" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Cute face -->
+  <!-- Eyes -->
+  <circle cx="82" cy="100" r="5" fill="#1a1a2e"/>
+  <circle cx="118" cy="100" r="5" fill="#1a1a2e"/>
+  <!-- Eye shine -->
+  <circle cx="84" cy="98" r="2" fill="white"/>
+  <circle cx="120" cy="98" r="2" fill="white"/>
+  <!-- Cute smile -->
+  <path d="M88,110 Q100,122 112,110" fill="none" stroke="#1a1a2e" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Rosy cheeks -->
+  <circle cx="72" cy="108" r="6" fill="#fca5a5" opacity="0.5"/>
+  <circle cx="128" cy="108" r="6" fill="#fca5a5" opacity="0.5"/>
+
+  <!-- Retro star accents -->
+  <polygon points="30,60 33,52 36,60 28,55 38,55" fill="#f59e0b" opacity="0.7"/>
+  <polygon points="165,55 167,49 169,55 163,52 171,52" fill="#f59e0b" opacity="0.5"/>
+  <polygon points="170,75 172,70 174,75 168,72 176,72" fill="#ef4444" opacity="0.4"/>
+  <polygon points="25,80 27,75 29,80 23,77 31,77" fill="#ef4444" opacity="0.4"/>
+
+  <!-- Retro text banner -->
+  <path id="banner" d="M30,155 Q100,175 170,155" fill="none"/>
+  <text font-family="Georgia, serif" font-size="14" font-weight="bold" fill="#c0392b" font-style="italic">
+    <textPath href="#banner" startOffset="50%" text-anchor="middle">Hot Dog!</textPath>
+  </text>
+</svg>
