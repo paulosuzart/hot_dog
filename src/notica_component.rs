@@ -74,6 +74,7 @@ pub fn NoticaApp() -> Element {
                 let aggregation = &data.count_metadata.aggregation;
                 let agg_label = aggregation.label();
                 let agg_unit = aggregation.unit_str();
+                let agg_unit_label = aggregation.unit_label();
 
                 rsx! {
                     // ── Kid cards ──
@@ -130,7 +131,7 @@ pub fn NoticaApp() -> Element {
                                 div { style: "width: 1px; height: 1.75rem; background-color: #e5e7eb;" }
                                 div {
                                     p { style: "font-size: 0.625rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; color: #9ca3af;",
-                                        "Current unit"
+                                        "{agg_unit_label}"
                                     }
                                     p { style: "font-size: 0.875rem; font-weight: 600; color: #374151; margin-top: 1px;",
                                         "{agg_unit}"

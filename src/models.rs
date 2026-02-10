@@ -24,14 +24,42 @@ impl CountAggregation {
         }
     }
 
+    /// Returns a contextual label for the footer (e.g. "Current month", "Today").
+    pub fn unit_label(&self) -> &'static str {
+        match self {
+            CountAggregation::Monthly(_, _) => "Current month",
+            CountAggregation::Weekly(_, _, _) => "Current week",
+            CountAggregation::Daily(_, _, _) => "Today",
+            CountAggregation::Yearly(_) => "Current year",
+        }
+    }
+
     /// Returns the current unit value for this aggregation period.
     pub fn unit_str(&self) -> String {
         match self {
-            CountAggregation::Monthly(m, y) => format!("{} of {}", m, y),
-            CountAggregation::Weekly(w, m, y) => format!("{} of {} {}", w, m, y),
-            CountAggregation::Daily(d, m, y) => format!("{} of {} {}", d, m, y),
+            CountAggregation::Monthly(m, y) => format!("{} {}", month_abbr(*m), y),
+            CountAggregation::Weekly(w, m, y) => format!("W{} · {} {}", w, month_abbr(*m), y),
+            CountAggregation::Daily(d, m, y) => format!("{} {} {}", d, month_abbr(*m), y),
             CountAggregation::Yearly(y) => format!("{}", y),
         }
+    }
+}
+
+fn month_abbr(m: u32) -> &'static str {
+    match m {
+        1 => "Jan",
+        2 => "Feb",
+        3 => "Mar",
+        4 => "Apr",
+        5 => "May",
+        6 => "Jun",
+        7 => "Jul",
+        8 => "Aug",
+        9 => "Sep",
+        10 => "Oct",
+        11 => "Nov",
+        12 => "Dec",
+        _ => "???",
     }
 }
 
