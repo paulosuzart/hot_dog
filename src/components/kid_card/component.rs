@@ -40,7 +40,7 @@ pub fn KidCard(
     let latest_note = kid
         .latest_note
         .map(|dt| dt.format("%b %d, %Y %H:%M").to_string())
-        .unwrap_or_else(|| "No notes yet".to_string());
+        .unwrap_or_else(|| "No notes for this cycle".to_string());
 
     rsx! {
         div { style: "border: 1px solid #e5e7eb; border-radius: 0.75rem; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden;",
@@ -49,8 +49,7 @@ pub fn KidCard(
             div { style: "display: flex; align-items: center; gap: 0.875rem; padding: 1rem 1.25rem;",
 
                 // Avatar
-                div {
-                    style: "flex-shrink: 0; width: 2.5rem; height: 2.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.875rem; font-weight: 700; background-color: {color};",
+                div { style: "flex-shrink: 0; width: 2.5rem; height: 2.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.875rem; font-weight: 700; background-color: {color};",
                     "{initial}"
                 }
 
@@ -126,9 +125,7 @@ pub fn KidCard(
             div { style: "padding: 0.625rem 1.25rem; background-color: #f9fafb; border-top: 1px solid #f3f4f6; display: flex; align-items: center; justify-content: space-between;",
                 p { style: "font-size: 0.75rem; color: #9ca3af;",
                     "Latest note: "
-                    span { style: "color: #6b7280;",
-                        "{latest_note}"
-                    }
+                    span { style: "color: #6b7280;", "{latest_note}" }
                 }
             }
         }
