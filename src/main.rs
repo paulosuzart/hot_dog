@@ -61,7 +61,7 @@ fn AboutView() -> Element {
                     button {
                         style: "display: flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 50%; color: #9ca3af; border: none; background: transparent; cursor: pointer; transition: all 0.15s;",
                         onclick: move |_| {
-                            navigator().go_back();
+                            navigator().push(Route::MainView);
                         },
                         svg {
                             xmlns: "http://www.w3.org/2000/svg",
