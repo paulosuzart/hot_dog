@@ -68,9 +68,9 @@ pub fn KidCard(
 
                 // Action buttons
                 div { style: "display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0;",
-                    // Decrement (green minus)
+                    // Decrement (red minus)
                     Button {
-                        style: "background-color: #dcfce7; color: #16a34a; padding: 8px; border-radius: 0.5rem;",
+                        style: "background-color: #fee2e2; color: #dc2626; padding: 8px; border-radius: 0.5rem;",
                         onclick: move |_| on_decrement.call(kid_id),
                         svg {
                             xmlns: "http://www.w3.org/2000/svg",
@@ -90,9 +90,9 @@ pub fn KidCard(
                             }
                         }
                     }
-                    // Increment (red plus)
+                    // Increment (green plus)
                     Button {
-                        style: "background-color: #fee2e2; color: #dc2626; padding: 8px; border-radius: 0.5rem;",
+                        style: "background-color: #dcfce7; color: #16a34a; padding: 8px; border-radius: 0.5rem;",
                         onclick: move |_| on_increment.call(kid_id),
                         svg {
                             xmlns: "http://www.w3.org/2000/svg",
