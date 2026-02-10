@@ -4,12 +4,16 @@ use crate::models::{CountMetadata, Kid};
 #[cfg(feature = "server")]
 use std::collections::HashMap;
 #[cfg(feature = "server")]
+use std::fmt;
+#[cfg(feature = "server")]
 use std::sync::{LazyLock, Mutex};
 
 #[cfg(feature = "server")]
 use crate::backend::turso::get_db;
 
+#[cfg(feature = "server")]
 use chrono::Datelike;
+
 #[cfg(feature = "server")]
 use libsql::de;
 
@@ -60,11 +64,38 @@ struct KidRow {
 }
 
 #[derive(Debug, serde::Deserialize)]
-#[allow(dead_code)]
+#[cfg(feature = "server")]
 struct SettingsRow {
     id: u32,
     granularity: String,
     created_at: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[cfg(feature = "server")]
+struct SummaryRow {
+    period: Option<String>,
+    total: Option<i32>,
+    kid_id: u32,
+    name: String,
+    created_at: String,
+    latest_note: Option<String>,
+}
+
+#[cfg(feature = "server")]
+impl SummaryRow {
+    fn to_kid(&self) -> Kid {
+        Kid {
+            id: self.kid_id,
+            name: self.name.clone(),
+            count: self.total.unwrap_or(0) as i8,
+            latest_note: self
+                .latest_note
+                .as_deref()
+                .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok())
+                .unwrap_or_default(),
+        }
+    }
 }
 
 #[cfg(feature = "server")]
@@ -152,36 +183,61 @@ pub async fn update_granularity(granularity: String) -> Result<(), ServerFnError
 #[server]
 pub async fn get_kids() -> Result<GetKidsResponse, ServerFnError> {
     let conn = get_db().await;
+    let now = chrono::offset::Utc::now().naive_utc();
+    let meta_raw = get_count_metadata().await?;
 
-    let mut rows = conn
-        .query("SELECT id, name, created_at FROM kids", ())
+    let (grain_format, grain_value) = match meta_raw.granularity.as_str() {
+        "DAILY" => ("%Y-%m-%d", now.format("%Y-%m-%d").to_string()),
+        "WEEKLY" => {
+            let week_start =
+                now - chrono::Duration::days(now.weekday().num_days_from_monday() as i64);
+            ("%Y-W%W", week_start.format("%Y-%m-%d 00:00:00").to_string())
+        }
+        "MONTHLY" => ("%Y-%m", now.format("%Y-%m").to_string()),
+        "YEARLY" => ("%Y", now.format("%Y").to_string()),
+        _ => {
+            return Err(ServerFnError::new(
+                "Invalid granularity in settings".to_string(),
+            ))
+        }
+    };
+
+    let query = format!(
+        "
+    SELECT
+        strftime('{}', notes.created_at) AS period,
+        SUM(quantity) AS total,
+        kids.id AS kid_id,
+        kids.name as name,
+        kids.created_at AS created_at,
+        MAX(notes.created_at) AS latest_note
+    FROM kids
+    LEFT JOIN notes ON notes.kid_id = kids.id AND notes.created_at >= '{}'
+    GROUP BY kid_id, period",
+        grain_format, grain_value
+    );
+
+    let stm = conn
+        .prepare(&query)
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    let mut rows = stm
+        .query(())
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
 
     let mut kids = Vec::new();
+
     while let Some(row) = rows
         .next()
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?
     {
-        let count = 5 as u8;
         let kid_row =
-            de::from_row::<KidRow>(&row).map_err(|e| ServerFnError::new(e.to_string()))?;
-        kids.push(Kid {
-            id: kid_row.id,
-            name: kid_row.name,
-            count,
-            // temporary. This is not the latest note.
-            latest_note: chrono::NaiveDateTime::parse_from_str(
-                &kid_row.created_at,
-                "%Y-%m-%d %H:%M:%S",
-            )
-            .map_err(|e| ServerFnError::new(e.to_string()))?,
-        });
+            de::from_row::<SummaryRow>(&row).map_err(|e| ServerFnError::new(e.to_string()))?;
+        kids.push(kid_row.to_kid());
     }
-
-    // second query to complete metadata
-    let meta_raw = get_count_metadata().await?;
 
     let aggregation = get_current_cycle(&meta_raw);
 
