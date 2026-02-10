@@ -152,6 +152,7 @@ pub fn NoticaApp() -> Element {
                                     }
                                 }
                             }
+                            div { style: "display: flex; align-items: center; gap: 0.5rem;",
                             Link {
                                 to: Route::SettingsView,
                                 style: "display: flex; align-items: center; gap: 0.375rem; padding: 0.5rem 0.75rem; border-radius: 0.5rem; font-size: 0.8125rem; font-weight: 500; color: #6b7280; text-decoration: none; transition: all 0.15s;",
@@ -174,6 +175,12 @@ pub fn NoticaApp() -> Element {
                                     }
                                 }
                                 "Settings"
+                            }
+                            Link {
+                                to: Route::AboutView,
+                                style: "display: flex; align-items: center; padding: 0.5rem 0.5rem; border-radius: 0.5rem; font-size: 0.8125rem; font-weight: 500; color: #9ca3af; text-decoration: none; transition: all 0.15s;",
+                                "About"
+                            }
                             }
                         }
                     }

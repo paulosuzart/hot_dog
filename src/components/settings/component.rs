@@ -43,6 +43,7 @@ pub fn SettingsPage() -> Element {
     let mut kids_resource = use_resource(list_kids);
     let mut new_kid_name = use_signal(|| String::new());
     let mut editing_kid_id: Signal<Option<u32>> = use_signal(|| None);
+
     let mut edit_name = use_signal(|| String::new());
 
     let current = match &*granularity.read() {
@@ -404,20 +405,6 @@ pub fn SettingsPage() -> Element {
                     }
                 }
 
-                // ── About Section ──
-                div { style: "border-radius: 0.75rem; border: 1px solid #e5e7eb; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05);",
-                    div { style: "padding: 1.5rem; display: flex; flex-direction: column; align-items: center; text-align: center;",
-                        img {
-                            src: asset!("/assets/hotdog.svg"),
-                            alt: "Hot Dog mascot",
-                            style: "width: 7rem; height: 7rem; margin-bottom: 1rem;",
-                        }
-                        h2 { class: "text-lg font-semibold text-gray-900", style: "margin-bottom: 0.5rem;", "About Hot Dog" }
-                        p { style: "font-size: 0.8125rem; color: #6b7280; line-height: 1.6; max-width: 380px;",
-                            "Hot Dog is a fun little app for tracking your kids\u{2019} daily notes \u{2014} think gold stars, good deeds, or the occasional oopsie. Pick how you want to count (daily, weekly, monthly) and tap away. Built with love, Rust, and a dash of mustard."
-                        }
-                    }
-                }
             }
         }
     }
