@@ -4,3 +4,4 @@ pub mod card;
 pub mod kid_card;
 pub mod popover;
 pub mod settings;
+pub mod toast;

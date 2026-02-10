@@ -5,6 +5,8 @@ use crate::components::button::*;
 use crate::components::popover::*;
 use crate::Route;
 use dioxus::prelude::*;
+use dioxus_primitives::toast::{consume_toast, ToastOptions};
+use std::time::Duration;
 
 const GRANULARITY_OPTIONS: &[(&str, &str)] = &[
     ("DAILY", "Daily"),
@@ -145,7 +147,13 @@ pub fn SettingsPage() -> Element {
                                                                         editing_kid_id.set(None);
                                                                         spawn(async move {
                                                                             if let Err(e) = rename_kid(kid_id, new_name).await {
-                                                                                eprintln!("Failed to rename kid: {e}");
+                                                                                let toast = consume_toast();
+                                                                                toast.error(
+                                                                                    "Failed to rename kid".to_string(),
+                                                                                    ToastOptions::new()
+                                                                                        .description(format!("{e}"))
+                                                                                        .duration(Duration::from_secs(5)),
+                                                                                );
                                                                             }
                                                                             kids_resource.restart();
                                                                         });
@@ -187,7 +195,13 @@ pub fn SettingsPage() -> Element {
                                                                 title: "Reset counter",
                                                                 onclick: move |_| {
                                                                     // TODO: wire to backend reset_kid_count(kid_id)
-                                                                    eprintln!("Reset counter for kid {kid_id} (not wired to backend yet)");
+                                                                    let toast = consume_toast();
+                                                                    toast.warning(
+                                                                        "Not available yet".to_string(),
+                                                                        ToastOptions::new()
+                                                                            .description("Reset counter is not wired to the backend yet.".to_string())
+                                                                            .duration(Duration::from_secs(3)),
+                                                                    );
                                                                 },
                                                                 svg {
                                                                     xmlns: "http://www.w3.org/2000/svg",
@@ -212,7 +226,13 @@ pub fn SettingsPage() -> Element {
                                                                 onclick: move |_| {
                                                                     spawn(async move {
                                                                         if let Err(e) = delete_kid(kid_id).await {
-                                                                            eprintln!("Failed to delete kid: {e}");
+                                                                            let toast = consume_toast();
+                                                                            toast.error(
+                                                                                "Failed to delete kid".to_string(),
+                                                                                ToastOptions::new()
+                                                                                    .description(format!("{e}"))
+                                                                                    .duration(Duration::from_secs(5)),
+                                                                            );
                                                                         }
                                                                         kids_resource.restart();
                                                                     });
@@ -257,7 +277,13 @@ pub fn SettingsPage() -> Element {
                                                         new_kid_name.set(String::new());
                                                         spawn(async move {
                                                             if let Err(e) = add_kid(name).await {
-                                                                eprintln!("Failed to add kid: {e}");
+                                                                let toast = consume_toast();
+                                                                toast.error(
+                                                                    "Failed to add kid".to_string(),
+                                                                    ToastOptions::new()
+                                                                        .description(format!("{e}"))
+                                                                        .duration(Duration::from_secs(5)),
+                                                                );
                                                             }
                                                             kids_resource.restart();
                                                         });
@@ -273,7 +299,13 @@ pub fn SettingsPage() -> Element {
                                                     new_kid_name.set(String::new());
                                                     spawn(async move {
                                                         if let Err(e) = add_kid(name).await {
-                                                            eprintln!("Failed to add kid: {e}");
+                                                            let toast = consume_toast();
+                                                            toast.error(
+                                                                "Failed to add kid".to_string(),
+                                                                ToastOptions::new()
+                                                                    .description(format!("{e}"))
+                                                                    .duration(Duration::from_secs(5)),
+                                                            );
                                                         }
                                                         kids_resource.restart();
                                                     });
@@ -338,7 +370,13 @@ pub fn SettingsPage() -> Element {
                                                             popover_open.set(false);
                                                             spawn(async move {
                                                                 if let Err(e) = update_granularity(value).await {
-                                                                    eprintln!("Failed to update granularity: {e}");
+                                                                    let toast = consume_toast();
+                                                                    toast.error(
+                                                                        "Failed to update aggregation".to_string(),
+                                                                        ToastOptions::new()
+                                                                            .description(format!("{e}"))
+                                                                            .duration(Duration::from_secs(5)),
+                                                                    );
                                                                 }
                                                                 granularity.restart();
                                                             });

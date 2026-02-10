@@ -3,6 +3,8 @@ use crate::components::{button::*, kid_card::*};
 use crate::models::KidsResponseWrapper;
 use crate::Route;
 use dioxus::prelude::*;
+use dioxus_primitives::toast::{consume_toast, ToastOptions};
+use std::time::Duration;
 
 #[component]
 pub fn NoticaApp() -> Element {
@@ -17,7 +19,15 @@ pub fn NoticaApp() -> Element {
                     kids.set(KidsResponseWrapper::Loaded(k));
                 }
             }
-            Err(_) => (),
+            Err(e) => {
+                let toast = consume_toast();
+                toast.error(
+                    "Failed to load kids".to_string(),
+                    ToastOptions::new()
+                        .description(format!("{e}"))
+                        .duration(Duration::from_secs(5)),
+                );
+            }
         }
     });
 
@@ -90,11 +100,13 @@ pub fn NoticaApp() -> Element {
                                                 match increment_kid_count(kid_id).await {
                                                     Ok(_) => rs.restart(),
                                                     Err(e) => {
-                                                        eprintln!(
-                                                            "Failed to increment count for kid with ID: {}: {:?}",
-                                                            kid_id,
-                                                            e,
-                                                        )
+                                                        let toast = consume_toast();
+                                                        toast.error(
+                                                            "Failed to add note".to_string(),
+                                                            ToastOptions::new()
+                                                                .description(format!("{e}"))
+                                                                .duration(Duration::from_secs(5)),
+                                                        );
                                                     }
                                                 }
                                             },
@@ -102,11 +114,13 @@ pub fn NoticaApp() -> Element {
                                                 match decrement_kid_count(kid_id).await {
                                                     Ok(_) => rs.restart(),
                                                     Err(e) => {
-                                                        eprintln!(
-                                                            "Failed to decrement count for kid with ID: {}: {:?}",
-                                                            kid_id,
-                                                            e,
-                                                        )
+                                                        let toast = consume_toast();
+                                                        toast.error(
+                                                            "Failed to remove note".to_string(),
+                                                            ToastOptions::new()
+                                                                .description(format!("{e}"))
+                                                                .duration(Duration::from_secs(5)),
+                                                        );
                                                     }
                                                 }
                                             },

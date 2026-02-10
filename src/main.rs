@@ -6,6 +6,7 @@ mod notica_component;
 use dioxus::prelude::*;
 
 use components::settings::SettingsPage;
+use components::toast::ToastProvider;
 use notica_component::NoticaApp;
 
 fn main() {
@@ -18,8 +19,9 @@ fn main() {
             document::Stylesheet {
                 href: asset!("/assets/dx-components-theme.css"),
             }
-            Router::<Route> {}
-
+            ToastProvider {
+                Router::<Route> {}
+            }
         }
     });
 }
