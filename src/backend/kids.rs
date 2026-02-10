@@ -93,7 +93,6 @@ impl SummaryRow {
                 .latest_note
                 .as_deref()
                 .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok())
-                .unwrap_or_default(),
         }
     }
 }
@@ -212,9 +211,9 @@ pub async fn get_kids() -> Result<GetKidsResponse, ServerFnError> {
         kids.created_at AS created_at,
         MAX(notes.created_at) AS latest_note
     FROM kids
-    LEFT JOIN notes ON notes.kid_id = kids.id AND notes.created_at >= '{}'
+    LEFT JOIN notes ON notes.kid_id = kids.id AND notes.created_at >= :grain_value
     GROUP BY kid_id, period",
-        grain_format, grain_value
+        grain_format
     );
 
     let stm = conn
@@ -223,7 +222,7 @@ pub async fn get_kids() -> Result<GetKidsResponse, ServerFnError> {
         .map_err(|e| ServerFnError::new(e.to_string()))?;
 
     let mut rows = stm
-        .query(())
+        .query(libsql::named_params! { ":grain_value": grain_value })
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
 

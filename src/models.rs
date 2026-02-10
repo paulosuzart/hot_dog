@@ -58,7 +58,7 @@ pub struct Kid {
     pub name: String,
     pub id: u32,
     pub count: i8,
-    pub latest_note: NaiveDateTime,
+    pub latest_note: Option<NaiveDateTime>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]

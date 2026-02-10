@@ -37,6 +37,10 @@ pub fn KidCard(
         .to_uppercase()
         .to_string();
     let color = kid_color(&kid.name);
+    let latest_note = kid
+        .latest_note
+        .map(|dt| dt.format("%b %d, %Y %H:%M").to_string())
+        .unwrap_or_else(|| "No notes yet".to_string());
 
     rsx! {
         div { style: "border: 1px solid #e5e7eb; border-radius: 0.75rem; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden;",
@@ -123,7 +127,7 @@ pub fn KidCard(
                 p { style: "font-size: 0.75rem; color: #9ca3af;",
                     "Latest note: "
                     span { style: "color: #6b7280;",
-                        "{kid.latest_note}"
+                        "{latest_note}"
                     }
                 }
             }
