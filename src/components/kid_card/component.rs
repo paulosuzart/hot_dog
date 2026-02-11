@@ -1,5 +1,6 @@
 use crate::components::button::*;
 use crate::models::Kid;
+use crate::Route;
 use dioxus::prelude::*;
 
 /// Returns a color based on the kid's name for the avatar circle.
@@ -48,20 +49,22 @@ pub fn KidCard(
             // ── Header row: avatar + name + count + buttons ──
             div { style: "display: flex; align-items: center; gap: 0.875rem; padding: 1rem 1.25rem;",
 
-                // Avatar
-                div { style: "flex-shrink: 0; width: 2.5rem; height: 2.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.875rem; font-weight: 700; background-color: {color};",
-                    "{initial}"
-                }
-
-                // Name + count
-                div { style: "flex: 1; min-width: 0;",
-                    p { style: "font-size: 1rem; font-weight: 600; color: #111827; line-height: 1.3;",
-                        "{kid.name}"
+                // Avatar + Name (linked to history)
+                Link {
+                    to: Route::KidHistory { id: kid.id },
+                    style: "flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.875rem; text-decoration: none;",
+                    div { style: "flex-shrink: 0; width: 2.5rem; height: 2.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.875rem; font-weight: 700; background-color: {color}; transition: transform 0.15s ease;",
+                        "{initial}"
                     }
-                    p { style: "font-size: 0.8125rem; color: #9ca3af; margin-top: 2px;",
-                        "Count: "
-                        span { style: "font-weight: 600; color: #374151; font-size: 0.875rem;",
-                            "{kid.count}"
+                    div { style: "flex: 1; min-width: 0;",
+                        p { style: "font-size: 1rem; font-weight: 600; color: #111827; line-height: 1.3;",
+                            "{kid.name}"
+                        }
+                        p { style: "font-size: 0.8125rem; color: #9ca3af; margin-top: 2px;",
+                            "Count: "
+                            span { style: "font-weight: 600; color: #374151; font-size: 0.875rem;",
+                                "{kid.count}"
+                            }
                         }
                     }
                 }

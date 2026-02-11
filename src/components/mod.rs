@@ -3,6 +3,7 @@ pub mod about;
 pub mod button;
 pub mod card;
 pub mod kid_card;
+pub mod kid_history;
 pub mod popover;
 pub mod settings;
 pub mod toast;

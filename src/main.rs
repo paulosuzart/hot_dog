@@ -6,6 +6,7 @@ mod notica_component;
 use dioxus::prelude::*;
 
 use components::about::AboutPage;
+use components::kid_history::KidHistoryPage;
 use components::settings::SettingsPage;
 use components::toast::ToastProvider;
 use notica_component::NoticaApp;
@@ -31,6 +32,8 @@ pub enum Route {
     SettingsView,
     #[route("/about")]
     AboutView,
+    #[route("/kid/:id")]
+    KidHistory { id: u32 },
 }
 
 #[component]
@@ -56,6 +59,15 @@ fn AboutView() -> Element {
     rsx! {
         div { style: "min-height: 100vh; background-color: #f3f4f6;",
             div { style: "max-width: 520px; margin: 0 auto; padding: 2rem 1rem;", AboutPage {} }
+        }
+    }
+}
+
+#[component]
+fn KidHistory(id: u32) -> Element {
+    rsx! {
+        div { style: "min-height: 100vh; background-color: #f3f4f6;",
+            div { style: "max-width: 520px; margin: 0 auto; padding: 2rem 1rem;", KidHistoryPage { kid_id: id } }
         }
     }
 }
