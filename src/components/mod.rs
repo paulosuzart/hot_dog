@@ -7,3 +7,4 @@ pub mod kid_history;
 pub mod popover;
 pub mod settings;
 pub mod toast;
+pub mod accordion;

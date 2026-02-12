@@ -1,9 +1,12 @@
+use crate::components::accordion::{Accordion, AccordionContent, AccordionItem, AccordionTrigger};
 use crate::Route;
 use dioxus::prelude::*;
 
 #[component]
 pub fn KidHistoryPage(kid_id: u32) -> Element {
-    let show_all_notes = use_signal(|| true);
+    let mut current_page = use_signal(|| 1usize);
+    let total_pages = use_signal(|| 5usize);
+    let items_per_page = 10usize;
 
     rsx! {
         style { "
@@ -12,7 +15,12 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
             .note-row:hover {{ background-color: #f9fafb; }}
             .note-input {{ transition: all 0.15s ease; }}
             .note-input:focus {{ background-color: #eff6ff; border-color: #3b82f6; outline: none; }}
-            .cycle-row:hover {{ background-color: #f9fafb; }}
+            .accordion-item {{ border: none; background: transparent; }}
+            .accordion-trigger {{ padding: 0; background: transparent; border: none; width: 100%; display: flex; align-items: center; justify-content: space-between; }}
+            .accordion-expand-icon {{ transition: transform 0.2s ease; }}
+            [data-expanded] > .accordion-trigger > .accordion-expand-icon {{ transform: rotate(180deg); }}
+            .accordion-content {{ border-top: 1px solid #f3f4f6; width: 100% !important; }}
+            .accordion {{ width: 100% !important; }}
         " }
 
         div { style: "max-width: 520px; margin: 0 auto;",
@@ -46,214 +54,116 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
                 }
             }
 
-            // ── View Toggle ──
-            div { style: "margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid #e5e7eb; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05);",
-                div { style: "display: flex; align-items: center; gap: 0.25rem; border-radius: 0.5rem; padding: 0.25rem; background-color: #f3f4f6;",
-                    button {
-                        style: if show_all_notes() {
-                            "padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 500; border-radius: 0.375rem; border: none; cursor: pointer; color: #374151; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05);"
-                        } else {
-                            "padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 500; border-radius: 0.375rem; border: none; cursor: pointer; color: #9ca3af; background: transparent;"
-                        },
-                        onclick: move |_| show_all_notes.set(true),
-                        "All Notes"
-                    }
-                    button {
-                        style: if !show_all_notes() {
-                            "padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 500; border-radius: 0.375rem; border: none; cursor: pointer; color: #374151; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05);"
-                        } else {
-                            "padding: 0.5rem 1rem; font-size: 0.875rem; font-weight: 500; border-radius: 0.375rem; border: none; cursor: pointer; color: #9ca3af; background: transparent;"
-                        },
-                        onclick: move |_| show_all_notes.set(false),
-                        "By Cycle"
-                    }
-                }
-            }
-
-            if *show_all_notes.read() {
-                // ── Pagination Toolbar (All Notes) ──
-                div { style: "margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid #e5e7eb; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05);",
-                    button {
-                        style: "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #9ca3af; transition: all 0.15s;",
-                        "Previous"
-                    }
-                    span { style: "font-size: 0.875rem; font-weight: 500; color: #374151;",
-                        "1 / 5"
-                    }
-                    button {
-                        style: "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #374151; transition: all 0.15s;",
-                        "Next"
-                    }
-                }
-            } else {
-                // ── Cycle Selector (By Cycle) ──
-                div { style: "margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid #e5e7eb; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05);",
-                    button {
-                        style: "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #9ca3af; transition: all 0.15s;",
-                        "Previous"
-                    }
-                    span { style: "font-size: 0.875rem; font-weight: 500; color: #374151;",
-                        "February 2026"
-                    }
-                    button {
-                        style: "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #374151; transition: all 0.15s;",
-                        "Next"
-                    }
-                }
-            }
-
-            // ── Note List ──
-            div { style: "border-radius: 0.75rem; border: 1px solid #e5e7eb; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden;",
-
-                if *show_all_notes.read() {
-                    // All Notes view
-                    for i in 0..30 {
-                        div {
-                            class: "note-row",
-                            style: "display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-top: 1px solid #f3f4f6; transition: background-color 0.15s;",
-
-                            // Date
-                            span { style: "flex-shrink: 0; font-size: 0.75rem; color: #9ca3af; width: 140px;",
-                                "Feb 10, 2026 14:30"
-                            }
-
-                            // Quantity badge
-                            span { style: "flex-shrink: 0; font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.5rem; border-radius: 0.375rem; background-color: #dcfce7; color: #16a34a;",
-                                "+1"
-                            }
-
-                            // Note text (editable input)
-                            input {
-                                class: "note-input",
-                                style: "flex: 1; font-size: 0.875rem; color: #374151; border: 1px solid transparent; border-radius: 0.375rem; padding: 0.375rem 0.75rem; background: transparent; min-width: 0;",
-                                r#type: "text",
-                                value: "Good behavior today",
-                            }
-
-                            // Delete button
-                            button {
-                                class: "delete-btn",
-                                style: "flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; border-radius: 0.375rem; border: none; cursor: pointer; color: #ef4444; background: transparent; transition: all 0.15s;",
-                                title: "Delete note",
-                                svg {
-                                    xmlns: "http://www.w3.org/2000/svg",
-                                    fill: "none",
-                                    view_box: "0 0 24 24",
-                                    stroke_width: "2",
-                                    stroke: "currentColor",
-                                    class: "h-4 w-4",
-                                    path {
-                                        stroke_linecap: "round",
-                                        stroke_linejoin: "round",
-                                        d: "M6 18 18 6M6 6l12 12",
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    // By Cycle view
-                    for i in 0..6 {
-                        div {
-                            class: "cycle-row",
-                            style: "display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-top: 1px solid #f3f4f6; transition: background-color 0.15s;",
-
-                            div { style: "display: flex; align-items: center; gap: 1rem; flex: 1; min-width: 0;",
-                                // Cycle label
-                                div {
-                                    style: "display: flex; flex-direction: column; gap: 0.25rem; min-width: 120px;",
-                                    span { style: "font-size: 0.875rem; font-weight: 600; color: #111827;",
-                                        "February 2026"
-                                    }
-                                    span { style: "font-size: 0.75rem; color: #9ca3af;",
-                                        "12 notes"
-                                    }
-                                }
-
-                                // Total count badge
-                                span { style: "flex-shrink: 0; font-size: 1.5rem; font-weight: 700; padding: 0.5rem 1rem; border-radius: 0.5rem; background-color: #dcfce7; color: #16a34a;",
-                                    "+24"
-                                }
-                            }
-
-                            // Chevron to expand
-                            svg {
-                                xmlns: "http://www.w3.org/2000/svg",
-                                fill: "none",
-                                view_box: "0 0 24 24",
-                                stroke_width: "2",
-                                stroke: "currentColor",
-                                class: "h-5 w-5",
-                                style: "color: #9ca3af; flex-shrink: 0;",
-                                path {
-                                    stroke_linecap: "round",
-                                    stroke_linejoin: "round",
-                                    d: "m19.5 8.25-7.5 7.5-7.5-7.5",
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+            // ── Pagination Toolbar ──
             div { style: "margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid #e5e7eb; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05);",
                 button {
-                    style: "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #9ca3af; transition: all 0.15s;",
+                    style: if current_page() == 1 {
+                        "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db; transition: all 0.15s;"
+                    } else {
+                        "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #9ca3af; transition: all 0.15s;"
+                    },
+                    disabled: current_page() == 1,
+                    onclick: move |_| {
+                        if current_page() > 1 {
+                            current_page -= 1;
+                        }
+                    },
                     "Previous"
                 }
                 span { style: "font-size: 0.875rem; font-weight: 500; color: #374151;",
-                    "1 / 5"
+                    "{current_page()} / {total_pages()}"
                 }
                 button {
-                    style: "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #374151; transition: all 0.15s;",
+                    style: if current_page() == total_pages() {
+                        "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db; transition: all 0.15s;"
+                    } else {
+                        "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #374151; transition: all 0.15s;"
+                    },
+                    disabled: current_page() == total_pages(),
+                    onclick: move |_| {
+                        if current_page() < total_pages() {
+                            current_page += 1;
+                        }
+                    },
                     "Next"
                 }
             }
 
-            // ── Note List ──
-            div { style: "border-radius: 0.75rem; border: 1px solid #e5e7eb; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden;",
+            // ── Cycle List (Accordion) ──
+            div { style: "border-radius: 0.75rem; border: 1px solid #e5e7eb; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden; width: 100%;",
+                Accordion {
+                    style: "width: 100%;",
+                    allow_multiple_open: true,
 
-                for i in 0..30 {
-                    div {
-                        class: "note-row",
-                        style: "display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-top: 1px solid #f3f4f6; transition: background-color 0.15s;",
+                    for i in ((current_page() - 1) * items_per_page)..std::cmp::min(current_page() * items_per_page, 60) {
+                        AccordionItem { index: i,
+                            AccordionTrigger {
+                                div { style: "display: flex; align-items: center; gap: 1rem; flex: 1; min-width: 0; padding: 1rem 1rem;",
+                                    // Cycle label
+                                    div {
+                                        style: "display: flex; flex-direction: column; gap: 0.25rem; min-width: 120px;",
+                                        span { style: "font-size: 0.875rem; font-weight: 600; color: #111827;",
+                                            "February 2026"
+                                        }
+                                        span { style: "font-size: 0.75rem; color: #9ca3af;",
+                                            "12 notes"
+                                        }
+                                    }
 
-                        // Date
-                        span { style: "flex-shrink: 0; font-size: 0.75rem; color: #9ca3af; width: 140px;",
-                            "Feb 10, 2026 14:30"
-                        }
+                                    // Total count badge
+                                    span { style: "flex-shrink: 0; font-size: 1.5rem; font-weight: 700; padding: 0.5rem 1rem; border-radius: 0.5rem; background-color: #dcfce7; color: #16a34a;",
+                                        "+24"
+                                    }
+                                }
+                            }
 
-                        // Quantity badge
-                        span { style: "flex-shrink: 0; font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.5rem; border-radius: 0.375rem; background-color: #dcfce7; color: #16a34a;",
-                            "+1"
-                        }
+                            AccordionContent {
+                                div { style: "background-color: #f9fafb; width: 100%;",
 
-                        // Note text (editable input)
-                        input {
-                            class: "note-input",
-                            style: "flex: 1; font-size: 0.875rem; color: #374151; border: 1px solid transparent; border-radius: 0.375rem; padding: 0.375rem 0.75rem; background: transparent; min-width: 0;",
-                            r#type: "text",
-                            value: "Good behavior today",
-                        }
+                                    for j in 0..3usize {
+                                        div {
+                                            class: "note-row",
+                                            style: "display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-top: 1px solid #f3f4f6; transition: background-color 0.15s;",
 
-                        // Delete button
-                        button {
-                            class: "delete-btn",
-                            style: "flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; border-radius: 0.375rem; border: none; cursor: pointer; color: #ef4444; background: transparent; transition: all 0.15s;",
-                            title: "Delete note",
-                            svg {
-                                xmlns: "http://www.w3.org/2000/svg",
-                                fill: "none",
-                                view_box: "0 0 24 24",
-                                stroke_width: "2",
-                                stroke: "currentColor",
-                                class: "h-4 w-4",
-                                path {
-                                    stroke_linecap: "round",
-                                    stroke_linejoin: "round",
-                                    d: "M6 18 18 6M6 6l12 12",
+                                            // Date
+                                            span { style: "flex-shrink: 0; font-size: 0.75rem; color: #9ca3af; width: 140px;",
+                                                "Feb 10, 2026 14:30"
+                                            }
+
+                                            // Quantity badge
+                                            span { style: "flex-shrink: 0; font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.5rem; border-radius: 0.375rem; background-color: #dcfce7; color: #16a34a;",
+                                                "+1"
+                                            }
+
+                                            // Note text (editable input)
+                                            input {
+                                                class: "note-input",
+                                                style: "flex: 1; font-size: 0.875rem; color: #374151; border: 1px solid transparent; border-radius: 0.375rem; padding: 0.375rem 0.75rem; background: white; min-width: 0;",
+                                                r#type: "text",
+                                                value: "Good behavior today",
+                                            }
+
+                                            // Delete button
+                                            button {
+                                                class: "delete-btn",
+                                                style: "flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; border-radius: 0.375rem; border: none; cursor: pointer; color: #ef4444; background: transparent; transition: all 0.15s;",
+                                                title: "Delete note",
+                                                svg {
+                                                    xmlns: "http://www.w3.org/2000/svg",
+                                                    fill: "none",
+                                                    view_box: "0 0 24 24",
+                                                    stroke_width: "2",
+                                                    stroke: "currentColor",
+                                                    class: "h-4 w-4",
+                                                    path {
+                                                        stroke_linecap: "round",
+                                                        stroke_linejoin: "round",
+                                                        d: "M6 18 18 6M6 6l12 12",
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -263,3 +173,5 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
         }
     }
 }
+
+
