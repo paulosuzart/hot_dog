@@ -4,19 +4,13 @@ use dioxus_primitives::accordion;
 #[component]
 pub fn Accordion(
     id: Option<String>,
-    #[props(default)]
-    allow_multiple_open: ReadSignal<bool>,
-    #[props(default)]
-    disabled: ReadSignal<bool>,
-    #[props(default = ReadSignal::new(Signal::new(true)))]
-    collapsible: ReadSignal<bool>,
-    #[props(default)]
-    horizontal: ReadSignal<bool>,
-    #[props(extends = GlobalAttributes)]
-    attributes: Vec<Attribute>,
+    #[props(default)] allow_multiple_open: ReadSignal<bool>,
+    #[props(default)] disabled: ReadSignal<bool>,
+    #[props(default = ReadSignal::new(Signal::new(true)))] collapsible: ReadSignal<bool>,
+    #[props(default)] horizontal: ReadSignal<bool>,
+    #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
     children: Element,
-    #[props(default)]
-    style: String,
+    #[props(default)] style: String,
 ) -> Element {
     rsx! {
         document::Link { rel: "stylesheet", href: asset!("./style.css") }
@@ -35,17 +29,12 @@ pub fn Accordion(
 
 #[component]
 pub fn AccordionItem(
-    #[props(default)]
-    disabled: ReadSignal<bool>,
-    #[props(default)]
-    default_open: bool,
-    #[props(default)]
-    on_change: Callback<bool, ()>,
-    #[props(default)]
-    on_trigger_click: Callback,
+    #[props(default)] disabled: ReadSignal<bool>,
+    #[props(default)] default_open: bool,
+    #[props(default)] on_change: Callback<bool, ()>,
+    #[props(default)] on_trigger_click: Callback,
     index: usize,
-    #[props(extends = GlobalAttributes)]
-    attributes: Vec<Attribute>,
+    #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
     children: Element,
 ) -> Element {
     rsx! {
@@ -65,8 +54,7 @@ pub fn AccordionItem(
 #[component]
 pub fn AccordionTrigger(
     id: Option<String>,
-    #[props(extends = GlobalAttributes)]
-    attributes: Vec<Attribute>,
+    #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
     children: Element,
 ) -> Element {
     rsx! {
@@ -89,8 +77,7 @@ pub fn AccordionTrigger(
 #[component]
 pub fn AccordionContent(
     id: ReadSignal<Option<String>>,
-    #[props(extends = GlobalAttributes)]
-    attributes: Vec<Attribute>,
+    #[props(extends = GlobalAttributes)] attributes: Vec<Attribute>,
     children: Element,
 ) -> Element {
     rsx! {

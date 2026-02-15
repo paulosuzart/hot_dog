@@ -92,7 +92,7 @@ impl SummaryRow {
             latest_note: self
                 .latest_note
                 .as_deref()
-                .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok())
+                .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S").ok()),
         }
     }
 }
@@ -140,10 +140,11 @@ async fn get_count_metadata() -> Result<SettingsRow, ServerFnError> {
 pub async fn log_note(kid_id: u32, add: bool) -> Result<(), ServerFnError> {
     let conn = get_db().await;
     let quantity = if add { 1 } else { -1 };
+    let created_at = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
 
     conn.execute(
-        "INSERT INTO notes (kid_id, quantity) VALUES (?1, ?2)",
-        libsql::params![kid_id, quantity],
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (?1, ?2, ?3)",
+        libsql::params![kid_id, quantity, created_at],
     )
     .await
     .map_err(|e| ServerFnError::new(e.to_string()))?;
@@ -280,7 +281,7 @@ pub async fn add_kid(name: String) -> Result<KidSummary, ServerFnError> {
     if name.is_empty() {
         return Err(ServerFnError::new("Name cannot be empty".to_string()));
     }
-    if name.len() > 50 {
+    if name.len() > 17 {
         return Err(ServerFnError::new(
             "Name too long (max 50 characters)".to_string(),
         ));
@@ -288,8 +289,13 @@ pub async fn add_kid(name: String) -> Result<KidSummary, ServerFnError> {
 
     let conn = get_db().await;
 
+    let mut trx = conn
+        .transaction_with_behavior(libsql::TransactionBehavior::Deferred)
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+
     // Enforce 10-kid limit
-    let mut count_rows = conn
+    let mut count_rows = trx
         .query("SELECT COUNT(*) as cnt FROM kids", ())
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
@@ -305,35 +311,25 @@ pub async fn add_kid(name: String) -> Result<KidSummary, ServerFnError> {
         }
     }
 
-    conn.execute(
-        "INSERT INTO kids (name, created_at) VALUES (?1, datetime('now', 'utc'))",
-        libsql::params![name.clone()],
+    let created_at = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    trx.execute(
+        "INSERT INTO kids (name, created_at) VALUES (?1, ?2)",
+        libsql::params![name.clone(), created_at],
     )
     .await
     .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-    // Retrieve the inserted kid
-    let mut rows = conn
-        .query(
-            "SELECT id, name FROM kids WHERE name = ?1 ORDER BY id DESC LIMIT 1",
-            libsql::params![name],
-        )
+    let inserted_id = trx.last_insert_rowid();
+
+    tracing::debug!("Inserted kid with ID: {}", inserted_id);
+    trx.commit()
         .await
         .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-    if let Some(row) = rows
-        .next()
-        .await
-        .map_err(|e| ServerFnError::new(e.to_string()))?
-    {
-        let kid =
-            de::from_row::<KidSummary>(&row).map_err(|e| ServerFnError::new(e.to_string()))?;
-        Ok(kid)
-    } else {
-        Err(ServerFnError::new(
-            "Failed to retrieve inserted kid".to_string(),
-        ))
-    }
+    Ok(KidSummary {
+        id: inserted_id as u32,
+        name,
+    })
 }
 
 /// Deletes a kid by id.

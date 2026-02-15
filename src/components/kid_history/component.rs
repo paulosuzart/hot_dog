@@ -173,5 +173,3 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
         }
     }
 }
-
-
