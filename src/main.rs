@@ -67,7 +67,9 @@ fn AboutView() -> Element {
 fn KidHistory(id: u32) -> Element {
     rsx! {
         div { style: "min-height: 100vh; background-color: #f3f4f6;",
-            div { style: "max-width: 520px; margin: 0 auto; padding: 2rem 1rem;", KidHistoryPage { kid_id: id } }
+            div { style: "max-width: 520px; margin: 0 auto; padding: 2rem 1rem;",
+                KidHistoryPage { kid_id: id }
+            }
         }
     }
 }

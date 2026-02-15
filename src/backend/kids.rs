@@ -216,6 +216,7 @@ pub async fn get_kids() -> Result<GetKidsResponse, ServerFnError> {
         grain_format
     );
 
+    tracing::debug!("SQL get_kids: {}, grain_value: {}", query, grain_value);
     let stm = conn
         .prepare(&query)
         .await
