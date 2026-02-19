@@ -12,7 +12,7 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
 
     let cursor = use_signal(|| None::<String>);
 
-    let history = use_resource(move || get_paged_history(kid_id, cursor(), 10));
+    let history = use_resource(move || get_paged_history(kid_id, cursor(), 1));
 
     rsx! {
         style {

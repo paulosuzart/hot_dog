@@ -518,12 +518,25 @@ impl std::str::FromStr for Cursor {
                 gt.to_string()
             }
             Granularity::Weekly => {
-                chrono::NaiveDate::parse_from_str(&gt, "%Y-%m-%d")
-                    .map_err(|e| format!("Invalid date in cursor: {}. Error: {}", gt, e))?;
+                let (year_str, week_str) = gt.split_once("-W").ok_or_else(|| {
+                    format!(
+                        "Invalid weekly cursor format: {}. Expected 'YYYY-Www'",
+                        gt
+                    )
+                })?;
+                let year = year_str.parse::<i32>().map_err(|e| {
+                    format!("Invalid year in cursor: {}. Error: {}", year_str, e)
+                })?;
+                let week = week_str.parse::<u32>().map_err(|e| {
+                    format!("Invalid week in cursor: {}. Error: {}", week_str, e)
+                })?;
+                chrono::NaiveDate::from_isoywd_opt(year, week, chrono::Weekday::Mon)
+                    .ok_or_else(|| format!("Invalid ISO week date in cursor: {}", gt))?;
+                
                 gt.to_string()
             }
             Granularity::Monthly => {
-                chrono::NaiveDate::parse_from_str(&gt, "%Y-%m")
+                chrono::NaiveDate::parse_from_str(&gt, "%Y-W%W")
                     .map_err(|e| format!("Invalid date in cursor: {}. Error: {}", gt, e))?;
                 gt.to_string()
             }
