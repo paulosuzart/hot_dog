@@ -1,4 +1,6 @@
-use crate::models::{CountAggregation, GetKidsResponse, KidSummary};
+use crate::models::{
+    CountAggregation, GetKidsResponse, KidHistory, KidHistoryResponse, KidSummary,
+};
 #[cfg(feature = "server")]
 use crate::models::{CountMetadata, Kid};
 #[cfg(feature = "server")]
@@ -21,6 +23,9 @@ use dioxus::prelude::*;
 
 #[cfg(feature = "server")]
 const ALLOWED_GRANULARITIES: &[&str] = &["DAILY", "WEEKLY", "MONTHLY", "YEARLY"];
+
+#[cfg(feature = "server")]
+const MAX_KID_NAME_LENGTH: usize = 17;
 
 #[cfg(feature = "server")]
 const FORMAT_MAP: LazyLock<HashMap<&str, &str>> = LazyLock::new(|| {
@@ -96,7 +101,30 @@ impl SummaryRow {
         }
     }
 }
+#[derive(Debug, serde::Deserialize)]
+struct HistoryRow {
+    kid_id: u32,
+    period: String,
+    total: i32,
+    neg_count: i32,
+    post_count: i32,
+    name: String,
+}
 
+impl Into<KidHistory> for HistoryRow {
+    fn into(self) -> KidHistory {
+        KidHistory {
+            id: self.kid_id,
+            period: self.period,
+            total: self.total,
+            neg_count: self.neg_count,
+            post_count: self.post_count,
+            name: self.name,
+        }
+    }
+}
+
+/// Get the current cycle based on the settings granularity.
 #[cfg(feature = "server")]
 fn get_current_cycle(settings: &SettingsRow) -> CountAggregation {
     let now = chrono::offset::Utc::now().naive_utc();
@@ -213,7 +241,7 @@ pub async fn get_kids() -> Result<GetKidsResponse, ServerFnError> {
         MAX(notes.created_at) AS latest_note
     FROM kids
     LEFT JOIN notes ON notes.kid_id = kids.id AND notes.created_at >= :grain_value
-    GROUP BY kid_id, period",
+    GROUP BY kids.id, period",
         grain_format
     );
 
@@ -281,7 +309,7 @@ pub async fn add_kid(name: String) -> Result<KidSummary, ServerFnError> {
     if name.is_empty() {
         return Err(ServerFnError::new("Name cannot be empty".to_string()));
     }
-    if name.len() > 17 {
+    if name.len() > MAX_KID_NAME_LENGTH {
         return Err(ServerFnError::new(
             "Name too long (max 50 characters)".to_string(),
         ));
@@ -349,7 +377,7 @@ pub async fn rename_kid(kid_id: u32, new_name: String) -> Result<(), ServerFnErr
     if new_name.is_empty() {
         return Err(ServerFnError::new("Name cannot be empty".to_string()));
     }
-    if new_name.len() > 50 {
+    if new_name.len() > MAX_KID_NAME_LENGTH {
         return Err(ServerFnError::new(
             "Name too long (max 50 characters)".to_string(),
         ));
@@ -363,4 +391,13 @@ pub async fn rename_kid(kid_id: u32, new_name: String) -> Result<(), ServerFnErr
     .await
     .map_err(|e| ServerFnError::new(e.to_string()))?;
     Ok(())
+}
+
+#[server]
+pub async fn get_kid_history(
+    kid_id: u32,
+    cursor: Option<String>,
+) -> Result<KidHistoryResponse, ServerFnError> {
+    let conn = get_db().await;
+    todo!()
 }

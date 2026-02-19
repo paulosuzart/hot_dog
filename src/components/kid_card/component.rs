@@ -61,7 +61,7 @@ pub fn KidCard(
                             "{kid.name}"
                         }
                         p { style: "font-size: 0.8125rem; color: #9ca3af; margin-top: 2px;",
-                            "Count: "
+                            "Hot dogs: "
                             span { style: "font-weight: 600; color: #374151; font-size: 0.875rem;",
                                 "{kid.count}"
                             }
