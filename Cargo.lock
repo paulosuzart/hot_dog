@@ -2570,12 +2570,14 @@ dependencies = [
 name = "hot_dog"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "dioxus",
  "dioxus-primitives",
  "libsql",
  "serde",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

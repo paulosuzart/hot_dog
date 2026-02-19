@@ -19,6 +19,21 @@ export TURSO_DATABASE_URL="<your-turso-db-url>"
 export TURSO_AUTH_TOKEN="<your-turso-auth-token>"
 ```
 
+### Database Setup
+
+To set up the database schema on your Turso database:
+
+```bash
+turso db shell <your-db-name> < migration.sql
+```
+
+The schema defines three tables:
+- `settings`: App-wide configuration (e.g., aggregation granularity)
+- `kids`: Stores information about each kid being tracked
+- `notes`: Stores individual tallies/points for each kid
+
+See [migration.sql](./migration.sql) for the full schema.
+
 ### Run
 
 ```bash
