@@ -98,7 +98,8 @@ pub struct KidSummary {
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct KidHistoryResponse {
     pub history: Vec<KidHistory>,
-    cursor: Option<String>,
+    pub cursor: Option<String>,
+    pub granularity: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -106,6 +107,7 @@ pub struct KidHistory {
     pub id: u32,
     pub period: String,
     pub total: i32,
+    pub result: i32,
     pub neg_count: i32,
     pub post_count: i32,
     pub name: String,

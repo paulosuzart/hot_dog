@@ -1,5 +1,7 @@
+use crate::backend::kids::get_paged_history;
 use crate::components::accordion::{Accordion, AccordionContent, AccordionItem, AccordionTrigger};
 use crate::Route;
+use dioxus::html::u;
 use dioxus::prelude::*;
 
 #[component]
@@ -8,8 +10,13 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
     let total_pages = use_signal(|| 5usize);
     let items_per_page = 10usize;
 
+    let cursor = use_signal(|| None::<String>);
+
+    let history = use_resource(move || get_paged_history(kid_id, cursor(), 10));
+
     rsx! {
-        style { "
+        style {
+            "
             .note-row .delete-btn {{ opacity: 0; transition: opacity 0.15s ease; }}
             .note-row:hover .delete-btn {{ opacity: 1; }}
             .note-row:hover {{ background-color: #f9fafb; }}
@@ -21,7 +28,8 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
             [data-expanded] > .accordion-trigger > .accordion-expand-icon {{ transform: rotate(180deg); }}
             .accordion-content {{ border-top: 1px solid #f3f4f6; width: 100% !important; }}
             .accordion {{ width: 100% !important; }}
-        " }
+        "
+        }
 
         div { style: "max-width: 520px; margin: 0 auto;",
 
@@ -46,8 +54,7 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
                 }
 
                 div { style: "display: flex; align-items: center; gap: 0.75rem;",
-                    div {
-                        style: "flex-shrink: 0; width: 2.5rem; height: 2.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.875rem; font-weight: 700; background-color: #6366f1;",
+                    div { style: "flex-shrink: 0; width: 2.5rem; height: 2.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.875rem; font-weight: 700; background-color: #6366f1;",
                         "J"
                     }
                     h1 { class: "text-2xl font-semibold text-gray-900", "Junior" }
@@ -57,11 +64,7 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
             // ── Pagination Toolbar ──
             div { style: "margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid #e5e7eb; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05);",
                 button {
-                    style: if current_page() == 1 {
-                        "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db; transition: all 0.15s;"
-                    } else {
-                        "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #9ca3af; transition: all 0.15s;"
-                    },
+                    style: if current_page() == 1 { "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db; transition: all 0.15s;" } else { "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #9ca3af; transition: all 0.15s;" },
                     disabled: current_page() == 1,
                     onclick: move |_| {
                         if current_page() > 1 {
@@ -74,11 +77,7 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
                     "{current_page()} / {total_pages()}"
                 }
                 button {
-                    style: if current_page() == total_pages() {
-                        "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db; transition: all 0.15s;"
-                    } else {
-                        "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #374151; transition: all 0.15s;"
-                    },
+                    style: if current_page() == total_pages() { "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db; transition: all 0.15s;" } else { "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #374151; transition: all 0.15s;" },
                     disabled: current_page() == total_pages(),
                     onclick: move |_| {
                         if current_page() < total_pages() {
@@ -91,17 +90,16 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
 
             // ── Cycle List (Accordion) ──
             div { style: "border-radius: 0.75rem; border: 1px solid #e5e7eb; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden; width: 100%;",
-                Accordion {
-                    style: "width: 100%;",
-                    allow_multiple_open: true,
+                Accordion { style: "width: 100%;", allow_multiple_open: true,
 
-                    for i in ((current_page() - 1) * items_per_page)..std::cmp::min(current_page() * items_per_page, 60) {
+                    for i in ((current_page() - 1)
+                        * items_per_page)..std::cmp::min(current_page() * items_per_page, 60)
+                    {
                         AccordionItem { index: i,
                             AccordionTrigger {
                                 div { style: "display: flex; align-items: center; gap: 1rem; flex: 1; min-width: 0; padding: 1rem 1rem;",
                                     // Cycle label
-                                    div {
-                                        style: "display: flex; flex-direction: column; gap: 0.25rem; min-width: 120px;",
+                                    div { style: "display: flex; flex-direction: column; gap: 0.25rem; min-width: 120px;",
                                         span { style: "font-size: 0.875rem; font-weight: 600; color: #111827;",
                                             "February 2026"
                                         }
