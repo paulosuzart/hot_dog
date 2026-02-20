@@ -519,20 +519,17 @@ impl std::str::FromStr for Cursor {
             }
             Granularity::Weekly => {
                 let (year_str, week_str) = gt.split_once("-W").ok_or_else(|| {
-                    format!(
-                        "Invalid weekly cursor format: {}. Expected 'YYYY-Www'",
-                        gt
-                    )
+                    format!("Invalid weekly cursor format: {}. Expected 'YYYY-Www'", gt)
                 })?;
-                let year = year_str.parse::<i32>().map_err(|e| {
-                    format!("Invalid year in cursor: {}. Error: {}", year_str, e)
-                })?;
-                let week = week_str.parse::<u32>().map_err(|e| {
-                    format!("Invalid week in cursor: {}. Error: {}", week_str, e)
-                })?;
+                let year = year_str
+                    .parse::<i32>()
+                    .map_err(|e| format!("Invalid year in cursor: {}. Error: {}", year_str, e))?;
+                let week = week_str
+                    .parse::<u32>()
+                    .map_err(|e| format!("Invalid week in cursor: {}. Error: {}", week_str, e))?;
                 chrono::NaiveDate::from_isoywd_opt(year, week, chrono::Weekday::Mon)
                     .ok_or_else(|| format!("Invalid ISO week date in cursor: {}", gt))?;
-                
+
                 gt.to_string()
             }
             Granularity::Monthly => {
@@ -553,6 +550,54 @@ impl std::str::FromStr for Cursor {
             granularity: cursor_granularity,
         })
     }
+}
+
+#[cfg(feature = "server")]
+async fn get_filter_total(
+    kid_id: u32,
+    cursor_clause: &str,
+    granularity_format: &str
+) -> Result<u32, ServerFnError> {
+    let conn = get_db().await;
+
+    let query = format!(
+        "
+        WITH
+        all_stats AS (
+            SELECT
+                strftime('{granularity_format}', notes.created_at) AS period
+            FROM
+                kids
+            LEFT JOIN notes ON notes.kid_id = kids.id
+            WHERE
+                kid_id = {kid_id}
+                {cursor_clause}
+            GROUP BY
+                period
+            ORDER BY
+                period DESC
+        )
+        SELECT
+        count(*) periods
+        FROM
+        all_stats
+            "
+    );
+
+    tracing::debug!("SQL get_filter_total: {}", query);
+
+    let mut stm = conn
+        .prepare(&query)
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    let row = stm
+        .query_row(())
+        .await
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    let count: u32 = row.get(0).map_err(|e| ServerFnError::new(e.to_string()))?;
+    return Ok(count);
 }
 
 #[server]
@@ -588,6 +633,12 @@ pub async fn get_paged_history(
     } else {
         "".to_string()
     };
+
+    let total = get_filter_total(
+        kid_id,
+        &curos_clause,
+        &metadata_granualrity.grain_format()
+    ).await?;
 
     let limit = page_size + 1; // Fetch one extra to determine if there's a next page
 
