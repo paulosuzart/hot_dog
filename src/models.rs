@@ -100,6 +100,7 @@ pub struct KidHistoryResponse {
     pub history: Vec<KidHistory>,
     pub cursor: Option<String>,
     pub granularity: String,
+    pub total_count: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
