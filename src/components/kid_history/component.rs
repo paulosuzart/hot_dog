@@ -6,13 +6,17 @@ use dioxus_primitives::toast::{consume_toast, ToastOptions};
 
 #[component]
 pub fn KidHistoryPage(kid_id: u32) -> Element {
-    let mut current_page = use_signal(|| 1usize);
-    let total_pages = use_signal(|| 5usize);
-    let items_per_page = 10usize;
+    let items_per_page = 1u8;
 
-    let cursor = use_signal(|| None::<String>);
+    // `cursor` drives the resource — changing it triggers a new fetch.
+    let mut cursor: Signal<Option<String>> = use_signal(|| None);
 
-    let history = use_resource(move || get_paged_history(kid_id, cursor(), 1));
+    // Stack of cursors for backward navigation.
+    // Each entry is the cursor that was active before we moved forward.
+    // Empty  → we are on page 1.
+    let mut cursor_stack: Signal<Vec<Option<String>>> = use_signal(|| vec![]);
+
+    let history = use_resource(move || get_paged_history(kid_id, cursor(), items_per_page));
 
     let toast = consume_toast();
     use_effect(move || {
@@ -38,7 +42,7 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
             [data-expanded] > .accordion-trigger > .accordion-expand-icon {{ transform: rotate(180deg); }}
             .accordion-content {{ border-top: 1px solid #f3f4f6; width: 100% !important; }}
             .accordion {{ width: 100% !important; }}
-        "
+            "
         }
 
         div { style: "max-width: 520px; margin: 0 auto;",
@@ -74,105 +78,114 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
             {
                 match &*history.read() {
                     None => rsx! {
-                        div { style: "text-align: center; padding: 2rem; color: #9ca3af;",
-                            "Loading..."
-                        }
+                        div { style: "text-align: center; padding: 2rem; color: #9ca3af;", "Loading..." }
                     },
-                    Some(Ok(response)) => rsx! {
-                        // ── Pagination Toolbar ──
-                        div { style: "margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid #e5e7eb; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05);",
-                            button {
-                                style: if current_page() == 1 { "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db; transition: all 0.15s;" } else { "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #9ca3af; transition: all 0.15s;" },
-                                disabled: current_page() == 1,
-                                onclick: move |_| {
-                                    if current_page() > 1 {
-                                        current_page -= 1;
-                                    }
-                                },
-                                "Previous"
-                            }
-                            span { style: "font-size: 0.875rem; font-weight: 500; color: #374151;",
-                                "{current_page()} / {total_pages()}"
-                            }
-                            button {
-                                style: if current_page() == total_pages() { "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db; transition: all 0.15s;" } else { "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #374151; transition: all 0.15s;" },
-                                disabled: current_page() == total_pages(),
-                                onclick: move |_| {
-                                    if current_page() < total_pages() {
-                                        current_page += 1;
-                                    }
-                                },
-                                "Next"
-                            }
-                        }
+                    Some(Ok(response)) => {
+                        let current_page = response.current_page;
+                        let total_pages = response.total_pages;
+                        // Clone the next cursor so it can be moved into the onclick closure.
+                        let next_cursor = response.cursor.clone();
+                        let has_prev = !cursor_stack.read().is_empty();
+                        let has_next = next_cursor.is_some();
 
-                        // ── Cycle List (Accordion) ──
-                        div { style: "border-radius: 0.75rem; border: 1px solid #e5e7eb; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden; width: 100%;",
-                            Accordion { style: "width: 100%;", allow_multiple_open: true,
+                        rsx! {
+                            // ── Pagination Toolbar ──
+                            div { style: "margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 1rem; padding: 0.75rem 1rem; border-radius: 0.75rem; border: 1px solid #e5e7eb; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05);",
+                                button {
+                                    style: if !has_prev { "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db; transition: all 0.15s;" } else { "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #9ca3af; transition: all 0.15s;" },
+                                    disabled: !has_prev,
+                                    onclick: move |_| {
+                                        if let Some(prev_cursor) = cursor_stack.write().pop() {
+                                            cursor.set(prev_cursor);
+                                        }
+                                    },
+                                    "Previous"
+                                }
+                                span { style: "font-size: 0.875rem; font-weight: 500; color: #374151;",
+                                    "{current_page} / {total_pages}"
+                                }
+                                button {
+                                    style: if !has_next { "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db; transition: all 0.15s;" } else { "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #374151; transition: all 0.15s;" },
+                                    disabled: !has_next,
+                                    onclick: move |_| {
+                                        if let Some(nc) = next_cursor.clone() {
+                                            // Push current cursor before advancing, so Previous can restore it.
+                                            cursor_stack.write().push(cursor());
+                                            cursor.set(Some(nc));
+                                        }
+                                    },
+                                    "Next"
+                                }
+                            }
 
-                                for (i, h) in response.history.iter().enumerate() {
-                                    AccordionItem { index: i,
-                                        AccordionTrigger {
-                                            div { style: "display: flex; align-items: center; gap: 1rem; flex: 1; min-width: 0; padding: 1rem 1rem;",
-                                                // Cycle label
-                                                div { style: "display: flex; flex-direction: column; gap: 0.25rem; min-width: 120px;",
-                                                    span { style: "font-size: 0.875rem; font-weight: 600; color: #111827;",
-                                                        "{h.period}"
+                            // ── Cycle List (Accordion) ──
+                            div { style: "border-radius: 0.75rem; border: 1px solid #e5e7eb; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden; width: 100%;",
+                                Accordion { style: "width: 100%;", allow_multiple_open: true,
+
+                                    for (i , h) in response.history.iter().enumerate() {
+                                        AccordionItem { index: i,
+                                            AccordionTrigger {
+                                                div { style: "display: flex; align-items: center; gap: 1rem; flex: 1; min-width: 0; padding: 1rem 1rem;",
+                                                    // Cycle label
+                                                    div { style: "display: flex; flex-direction: column; gap: 0.25rem; min-width: 120px;",
+                                                        span { style: "font-size: 0.875rem; font-weight: 600; color: #111827;",
+                                                            "{h.period}"
+                                                        }
+                                                        span { style: "font-size: 0.75rem; color: #9ca3af;",
+                                                            "{h.neg_count + h.post_count} notes"
+                                                        }
                                                     }
-                                                    span { style: "font-size: 0.75rem; color: #9ca3af;",
-                                                        "{h.neg_count + h.post_count} notes"
-                                                    }
-                                                }
 
-                                                // Total count badge
-                                                span { style: "flex-shrink: 0; font-size: 1.5rem; font-weight: 700; padding: 0.5rem 1rem; border-radius: 0.5rem; background-color: if h.total >= 0 { \"#dcfce7\" } else { \"#fee2e2\" }; color: if h.total >= 0 { \"#16a34a\" } else { \"#dc2626\" };",
-                                                    "{h.total}"
+                                                    // Total count badge
+                                                    span { style: "flex-shrink: 0; font-size: 1.5rem; font-weight: 700; padding: 0.5rem 1rem; border-radius: 0.5rem; background-color: if h.total >= 0 { \"#dcfce7\" } else { \"#fee2e2\" }; color: if h.total >= 0 { \"#16a34a\" } else { \"#dc2626\" };",
+                                                        "{h.total}"
+                                                    }
                                                 }
                                             }
-                                        }
 
-                                        AccordionContent {
-                                            div { style: "background-color: #f9fafb; width: 100%;",
+                                            AccordionContent {
+                                                div { style: "background-color: #f9fafb; width: 100%;",
 
-                                                for j in 0..3usize {
-                                                    div {
-                                                        class: "note-row",
-                                                        style: "display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-top: 1px solid #f3f4f6; transition: background-color 0.15s;",
+                                                    for j in 0..3usize {
+                                                        div {
+                                                            class: "note-row",
+                                                            style: "display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-top: 1px solid #f3f4f6; transition: background-color 0.15s;",
 
-                                                        // Date
-                                                        span { style: "flex-shrink: 0; font-size: 0.75rem; color: #9ca3af; width: 140px;",
-                                                            "Feb 10, 2026 14:30"
-                                                        }
+                                                            // Date
+                                                            span { style: "flex-shrink: 0; font-size: 0.75rem; color: #9ca3af; width: 140px;",
+                                                                "Feb 10, 2026 14:30"
+                                                            }
 
-                                                        // Quantity badge
-                                                        span { style: "flex-shrink: 0; font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.5rem; border-radius: 0.375rem; background-color: #dcfce7; color: #16a34a;",
-                                                            "+1"
-                                                        }
+                                                            // Quantity badge
+                                                            span { style: "flex-shrink: 0; font-size: 0.75rem; font-weight: 600; padding: 0.25rem 0.5rem; border-radius: 0.375rem; background-color: #dcfce7; color: #16a34a;",
+                                                                "+1"
+                                                            }
 
-                                                        // Note text (editable input)
-                                                        input {
-                                                            class: "note-input",
-                                                            style: "flex: 1; font-size: 0.875rem; color: #374151; border: 1px solid transparent; border-radius: 0.375rem; padding: 0.375rem 0.75rem; background: white; min-width: 0;",
-                                                            r#type: "text",
-                                                            value: "Good behavior today",
-                                                        }
+                                                            // Note text (editable input)
+                                                            input {
+                                                                class: "note-input",
+                                                                style: "flex: 1; font-size: 0.875rem; color: #374151; border: 1px solid transparent; border-radius: 0.375rem; padding: 0.375rem 0.75rem; background: white; min-width: 0;",
+                                                                r#type: "text",
+                                                                value: "Good behavior today",
+                                                            }
 
-                                                        // Delete button
-                                                        button {
-                                                            class: "delete-btn",
-                                                            style: "flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; border-radius: 0.375rem; border: none; cursor: pointer; color: #ef4444; background: transparent; transition: all 0.15s;",
-                                                            title: "Delete note",
-                                                            svg {
-                                                                xmlns: "http://www.w3.org/2000/svg",
-                                                                fill: "none",
-                                                                view_box: "0 0 24 24",
-                                                                stroke_width: "2",
-                                                                stroke: "currentColor",
-                                                                class: "h-4 w-4",
-                                                                path {
-                                                                    stroke_linecap: "round",
-                                                                    stroke_linejoin: "round",
-                                                                    d: "M6 18 18 6M6 6l12 12",
+                                                            // Delete button
+                                                            button {
+                                                                class: "delete-btn",
+                                                                style: "flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; border-radius: 0.375rem; border: none; cursor: pointer; color: #ef4444; background: transparent; transition: all 0.15s;",
+                                                                title: "Delete note",
+                                                                svg {
+                                                                    xmlns: "http://www.w3.org/2000/svg",
+                                                                    fill: "none",
+                                                                    view_box: "0 0 24 24",
+                                                                    stroke_width: "2",
+                                                                    stroke: "currentColor",
+                                                                    class: "h-4 w-4",
+                                                                    path {
+                                                                        stroke_linecap: "round",
+                                                                        stroke_linejoin: "round",
+                                                                        d: "M6 18 18 6M6 6l12 12",
+                                                                    }
                                                                 }
                                                             }
                                                         }
@@ -184,11 +197,9 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
                                 }
                             }
                         }
-                    },
+                    }
                     Some(Err(_)) => rsx! {
-                        div { style: "text-align: center; padding: 2rem; color: #d1d5db;",
-                            "No data available"
-                        }
+                        div { style: "text-align: center; padding: 2rem; color: #d1d5db;", "No data available" }
                     },
                 }
             }

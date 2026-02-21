@@ -113,8 +113,12 @@ impl KidHistoryQuery {
     /// Extracts the next cursor from the periods list if there are more items than the page size.
     fn extract_next_cursor(&self, periods: &mut Vec<NumberedHistoryRow>) -> Option<String> {
         if periods.len() > self.page_size as usize {
-            let last_item = periods.pop().unwrap();
-            let cursor_str = format!("{}|{}", last_item.period, self.granularity);
+            // Discard the extra "peek" item — it only proves a next page exists.
+            periods.pop();
+            // Cursor points to the LAST item of the current page so the next
+            // query can filter `row_num > cursor_row_num` correctly.
+            let last_in_page = periods.last().unwrap();
+            let cursor_str = format!("{}|{}", last_in_page.period, self.granularity);
             Some(URL_SAFE.encode(cursor_str.as_bytes()))
         } else {
             None

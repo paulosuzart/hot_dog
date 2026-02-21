@@ -532,12 +532,12 @@ impl std::str::FromStr for Cursor {
                 gt.to_string()
             }
             Granularity::Monthly => {
-                chrono::NaiveDate::parse_from_str(&gt, "%Y-W%W")
+                chrono::NaiveDate::parse_from_str(&format!("{}-01", gt), "%Y-%m-%d")
                     .map_err(|e| format!("Invalid date in cursor: {}. Error: {}", gt, e))?;
                 gt.to_string()
             }
             Granularity::Yearly => {
-                chrono::NaiveDate::parse_from_str(&gt, "%Y")
+                chrono::NaiveDate::parse_from_str(&format!("{}-01-01", gt), "%Y-%m-%d")
                     .map_err(|e| format!("Invalid date in cursor: {}. Error: {}", gt, e))?;
                 gt.to_string()
             }
