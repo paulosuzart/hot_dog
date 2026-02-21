@@ -18,6 +18,15 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
 
     let history = use_resource(move || get_paged_history(kid_id, cursor(), items_per_page));
 
+    // Derive the kid's name from the resource — stays None while loading.
+    let kid_name = use_memo(move || {
+        history
+            .read()
+            .as_ref()
+            .and_then(|r| r.as_ref().ok())
+            .map(|r| r.name.clone())
+    });
+
     let toast = consume_toast();
     use_effect(move || {
         if let Some(Err(e)) = history.read().as_ref() {
@@ -69,9 +78,17 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
 
                 div { style: "display: flex; align-items: center; gap: 0.75rem;",
                     div { style: "flex-shrink: 0; width: 2.5rem; height: 2.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.875rem; font-weight: 700; background-color: #6366f1;",
-                        "J"
+                        {
+                            kid_name()
+                                .as_deref()
+                                .and_then(|n| n.chars().next())
+                                .map(|c| c.to_uppercase().to_string())
+                                .unwrap_or_else(|| "…".to_string())
+                        }
                     }
-                    h1 { class: "text-2xl font-semibold text-gray-900", "Junior" }
+                    h1 { class: "text-2xl font-semibold text-gray-900",
+                        { kid_name().unwrap_or_else(|| "Loading…".to_string()) }
+                    }
                 }
             }
 
