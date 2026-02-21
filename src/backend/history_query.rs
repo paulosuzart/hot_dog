@@ -49,7 +49,12 @@ pub struct KidHistoryQuery {
 
 #[cfg(feature = "server")]
 impl KidHistoryQuery {
-    pub fn new(kid_id: u32, cursor: Option<Cursor>, page_size: u8, granularity: Granularity) -> Self {
+    pub fn new(
+        kid_id: u32,
+        cursor: Option<Cursor>,
+        page_size: u8,
+        granularity: Granularity,
+    ) -> Self {
         Self {
             kid_id,
             cursor: cursor,
@@ -77,7 +82,10 @@ impl KidHistoryQuery {
         self.execute_with_db(conn).await
     }
 
-    pub async fn execute_with_db(&self, conn: &'static libsql::Connection) -> Result<KidHistoryResponse, ServerFnError> {
+    pub async fn execute_with_db(
+        &self,
+        conn: &'static libsql::Connection,
+    ) -> Result<KidHistoryResponse, ServerFnError> {
         let cursor_clause = self.cursor_clause();
         let grain_format = self.granularity.grain_format();
 
@@ -99,7 +107,8 @@ impl KidHistoryQuery {
         let total_pages = (total_count + self.page_size as u32 - 1) / self.page_size as u32;
 
         let next_cursor = self.extract_next_cursor(&mut periods);
-        let kid_history: Vec<KidHistory> = periods.into_iter().map(|r| r.to_kid_history()).collect();
+        let kid_history: Vec<KidHistory> =
+            periods.into_iter().map(|r| r.to_kid_history()).collect();
 
         let kid_name = kid_history[0].name.clone();
         Ok(KidHistoryResponse {
@@ -323,7 +332,9 @@ mod tests {
             .await
             .expect("Failed to create in-memory database");
 
-        let db_conn = db.connect().expect("Failed to connect to in-memory database");
+        let db_conn = db
+            .connect()
+            .expect("Failed to connect to in-memory database");
 
         // Create schema
         db_conn
@@ -801,7 +812,10 @@ mod tests {
         assert_eq!(page1.history.len(), 1, "page 1 should have 1 item");
         assert_eq!(page1.current_page, 1);
         assert_eq!(page1.total_pages, 2);
-        assert!(page1.cursor.is_some(), "page 1 must expose a next-page cursor");
+        assert!(
+            page1.cursor.is_some(),
+            "page 1 must expose a next-page cursor"
+        );
 
         // Build page-2 query from the encoded cursor returned by page 1.
         let cursor2 = Cursor::from_str(page1.cursor.as_ref().unwrap())
@@ -812,10 +826,12 @@ mod tests {
         assert_eq!(page2.history.len(), 1, "page 2 must not be empty");
         assert_eq!(page2.current_page, 2);
         assert_eq!(page2.total_pages, 2);
-        assert!(page2.cursor.is_none(), "page 2 is the last page — no cursor expected");
+        assert!(
+            page2.cursor.is_none(),
+            "page 2 is the last page — no cursor expected"
+        );
         assert_ne!(
-            page1.history[0].period,
-            page2.history[0].period,
+            page1.history[0].period, page2.history[0].period,
             "pages must show different periods"
         );
     }
