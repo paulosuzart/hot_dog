@@ -6,7 +6,7 @@ use dioxus_primitives::toast::{consume_toast, ToastOptions};
 
 #[component]
 pub fn KidHistoryPage(kid_id: u32) -> Element {
-    let items_per_page = 1u8;
+    let items_per_page = 10u8;
 
     // `cursor` drives the resource — changing it triggers a new fetch.
     let mut cursor: Signal<Option<String>> = use_signal(|| None);

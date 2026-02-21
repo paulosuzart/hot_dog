@@ -576,3 +576,92 @@ pub async fn get_paged_history(
     
     KidHistoryQuery::new(kid_id, parsed_cursor, page_size, granularity).execute().await
 }
+
+// ============================================
+// TESTS
+// ============================================
+
+#[cfg(feature = "server")]
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use base64::engine::general_purpose::URL_SAFE;
+    use base64::Engine as _;
+    use std::str::FromStr;
+
+    fn encode_cursor(period: &str, granularity: &str) -> String {
+        URL_SAFE.encode(format!("{}|{}", period, granularity).as_bytes())
+    }
+
+    #[test]
+    fn test_cursor_from_str_daily_roundtrip() {
+        let encoded = encode_cursor("2026-02-21", "DAILY");
+        let cursor = Cursor::from_str(&encoded).expect("daily cursor must parse");
+
+        assert_eq!(cursor.grain_value, "2026-02-21");
+        assert_eq!(cursor.grain_format, "%Y-%m-%d");
+        assert_eq!(cursor.granularity, Granularity::Daily);
+    }
+
+    #[test]
+    fn test_cursor_from_str_weekly_roundtrip() {
+        let encoded = encode_cursor("2026-W08", "WEEKLY");
+        let cursor = Cursor::from_str(&encoded).expect("weekly cursor must parse");
+
+        assert_eq!(cursor.grain_value, "2026-W08");
+        assert_eq!(cursor.grain_format, "%Y-W%W");
+        assert_eq!(cursor.granularity, Granularity::Weekly);
+    }
+
+    /// Regression: Monthly cursor previously failed because the validator used the
+    /// weekly format `%Y-W%W` instead of `%Y-%m`.
+    #[test]
+    fn test_cursor_from_str_monthly_roundtrip() {
+        let encoded = encode_cursor("2026-02", "MONTHLY");
+        let cursor = Cursor::from_str(&encoded).expect("monthly cursor must parse");
+
+        assert_eq!(cursor.grain_value, "2026-02");
+        assert_eq!(cursor.grain_format, "%Y-%m");
+        assert_eq!(cursor.granularity, Granularity::Monthly);
+    }
+
+    /// Regression: Yearly cursor previously failed because `NaiveDate::parse_from_str`
+    /// cannot parse a bare year like `"2026"` — it needs a full date.
+    #[test]
+    fn test_cursor_from_str_yearly_roundtrip() {
+        let encoded = encode_cursor("2026", "YEARLY");
+        let cursor = Cursor::from_str(&encoded).expect("yearly cursor must parse");
+
+        assert_eq!(cursor.grain_value, "2026");
+        assert_eq!(cursor.grain_format, "%Y");
+        assert_eq!(cursor.granularity, Granularity::Yearly);
+    }
+
+    #[test]
+    fn test_cursor_from_str_invalid_base64_fails() {
+        let result = Cursor::from_str("not-valid-base64!!!");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cursor_from_str_unknown_granularity_fails() {
+        let encoded = encode_cursor("2026-02-21", "QUARTERLY");
+        let result = Cursor::from_str(&encoded);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cursor_from_str_invalid_date_fails() {
+        let encoded = encode_cursor("not-a-date", "DAILY");
+        let result = Cursor::from_str(&encoded);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cursor_from_str_missing_separator_fails() {
+        // No `|` separator between period and granularity
+        let encoded = URL_SAFE.encode(b"2026-02-21DAILY");
+        let result = Cursor::from_str(&encoded);
+        assert!(result.is_err());
+    }
+}

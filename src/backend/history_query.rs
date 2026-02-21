@@ -91,6 +91,7 @@ impl KidHistoryQuery {
                 total_count: 0,
                 current_page: 1,
                 total_pages: 0,
+                name: "".to_string(),
             });
         }
 
@@ -100,6 +101,7 @@ impl KidHistoryQuery {
         let next_cursor = self.extract_next_cursor(&mut periods);
         let kid_history: Vec<KidHistory> = periods.into_iter().map(|r| r.to_kid_history()).collect();
 
+        let kid_name = kid_history[0].name.clone();
         Ok(KidHistoryResponse {
             history: kid_history,
             cursor: next_cursor,
@@ -107,6 +109,7 @@ impl KidHistoryQuery {
             total_count,
             current_page,
             total_pages,
+            name: kid_name,
         })
     }
 
@@ -252,6 +255,65 @@ mod tests {
     use super::*;
     use chrono::{Duration, Utc};
     use libsql::{Builder, Connection};
+    use std::str::FromStr;
+
+    /// Creates a minimal in-memory DB with one kid that has notes in exactly two
+    /// calendar months.  Uses hard-coded dates so the test is not time-sensitive.
+    async fn setup_two_period_db() -> Connection {
+        let db = Builder::new_local(":memory:")
+            .build()
+            .await
+            .expect("Failed to create in-memory database");
+        let conn = db.connect().expect("Failed to connect");
+
+        conn.execute(
+            "CREATE TABLE kids (id integer PRIMARY KEY AUTOINCREMENT UNIQUE, name text NOT NULL, created_at text)",
+            (),
+        )
+        .await
+        .unwrap();
+        conn.execute(
+            "CREATE TABLE notes (id integer PRIMARY KEY, created_at text NOT NULL, quantity integer, kid_id integer NOT NULL)",
+            (),
+        )
+        .await
+        .unwrap();
+
+        conn.execute(
+            "INSERT INTO kids (name, created_at) VALUES ('Sam', '2026-01-01 00:00:00')",
+            (),
+        )
+        .await
+        .unwrap();
+
+        // Month 1 (most recent) — 2026-02
+        for day in [5u8, 10, 15] {
+            conn.execute(
+                &format!(
+                    "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, 1, '2026-02-{:02} 00:00:00')",
+                    day
+                ),
+                (),
+            )
+            .await
+            .unwrap();
+        }
+
+        // Month 2 (older) — 2026-01
+        for day in [10u8, 20] {
+            conn.execute(
+                &format!(
+                    "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, -1, '2026-01-{:02} 00:00:00')",
+                    day
+                ),
+                (),
+            )
+            .await
+            .unwrap();
+        }
+
+        conn
+    }
     use std::boxed::Box;
 
     /// Creates an in-memory SQLite database with test schema and data
@@ -722,5 +784,88 @@ mod tests {
         assert_eq!(result.current_page, 2);
         assert_eq!(result.total_pages, 3);
         assert!(result.cursor.is_some());
+    }
+
+    /// Regression: when exactly 2 periods exist and page_size=1, clicking Next must
+    /// show page 2 (not an empty result).  Previously the cursor pointed at the extra
+    /// peek item, so page 2 queried `row_num > 2` and got nothing.
+    #[tokio::test]
+    async fn test_two_period_second_page_not_empty() {
+        let db = setup_two_period_db().await;
+        let db_static = Box::leak(Box::new(db));
+
+        // Sam (kid_id=1) has notes in exactly 2 months.
+        let query1 = KidHistoryQuery::new(1, None, 1, Granularity::Monthly);
+        let page1 = query1.execute_with_db(db_static).await.unwrap();
+
+        assert_eq!(page1.history.len(), 1, "page 1 should have 1 item");
+        assert_eq!(page1.current_page, 1);
+        assert_eq!(page1.total_pages, 2);
+        assert!(page1.cursor.is_some(), "page 1 must expose a next-page cursor");
+
+        // Build page-2 query from the encoded cursor returned by page 1.
+        let cursor2 = Cursor::from_str(page1.cursor.as_ref().unwrap())
+            .expect("cursor from page 1 must parse");
+        let query2 = KidHistoryQuery::new(1, Some(cursor2), 1, Granularity::Monthly);
+        let page2 = query2.execute_with_db(db_static).await.unwrap();
+
+        assert_eq!(page2.history.len(), 1, "page 2 must not be empty");
+        assert_eq!(page2.current_page, 2);
+        assert_eq!(page2.total_pages, 2);
+        assert!(page2.cursor.is_none(), "page 2 is the last page — no cursor expected");
+        assert_ne!(
+            page1.history[0].period,
+            page2.history[0].period,
+            "pages must show different periods"
+        );
+    }
+
+    /// Navigate all three monthly pages for Alice using only the cursors returned by
+    /// each response — i.e. no manually constructed Cursor objects.
+    #[tokio::test]
+    async fn test_full_three_page_navigation() {
+        let db = setup_test_db().await;
+        let db_static = Box::leak(Box::new(db));
+
+        // Page 1
+        let q1 = KidHistoryQuery::new(1, None, 1, Granularity::Monthly);
+        let p1 = q1.execute_with_db(db_static).await.unwrap();
+
+        assert_eq!(p1.history.len(), 1);
+        assert_eq!(p1.current_page, 1);
+        assert_eq!(p1.total_pages, 3);
+        assert!(p1.cursor.is_some());
+
+        // Page 2 — built from the cursor returned on page 1
+        let c2 = Cursor::from_str(p1.cursor.as_ref().unwrap()).expect("page-1 cursor must parse");
+        let q2 = KidHistoryQuery::new(1, Some(c2), 1, Granularity::Monthly);
+        let p2 = q2.execute_with_db(db_static).await.unwrap();
+
+        assert_eq!(p2.history.len(), 1);
+        assert_eq!(p2.current_page, 2);
+        assert_eq!(p2.total_pages, 3);
+        assert!(p2.cursor.is_some());
+        assert_ne!(p1.history[0].period, p2.history[0].period);
+
+        // Page 3 — built from the cursor returned on page 2
+        let c3 = Cursor::from_str(p2.cursor.as_ref().unwrap()).expect("page-2 cursor must parse");
+        let q3 = KidHistoryQuery::new(1, Some(c3), 1, Granularity::Monthly);
+        let p3 = q3.execute_with_db(db_static).await.unwrap();
+
+        assert_eq!(p3.history.len(), 1);
+        assert_eq!(p3.current_page, 3);
+        assert_eq!(p3.total_pages, 3);
+        assert!(p3.cursor.is_none(), "last page must have no cursor");
+        assert_ne!(p2.history[0].period, p3.history[0].period);
+
+        // All three periods must be distinct
+        let periods: std::collections::HashSet<_> = [
+            &p1.history[0].period,
+            &p2.history[0].period,
+            &p3.history[0].period,
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(periods.len(), 3, "each page must show a unique period");
     }
 }

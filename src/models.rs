@@ -103,6 +103,7 @@ pub struct KidHistoryResponse {
     pub total_count: u32,
     pub current_page: u32,
     pub total_pages: u32,
+    pub name: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
