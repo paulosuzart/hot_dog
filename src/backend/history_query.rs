@@ -11,6 +11,35 @@ use crate::{
 };
 
 #[cfg(feature = "server")]
+#[derive(Debug, serde::Deserialize)]
+struct NumberedHistoryRow {
+    kid_id: u32,
+    period: String,
+    total: i32,
+    result: i32,
+    neg_count: i32,
+    post_count: i32,
+    name: String,
+    row_num: u32,
+    total_count: u32,
+}
+
+#[cfg(feature = "server")]
+impl NumberedHistoryRow {
+    fn to_kid_history(self) -> KidHistory {
+        KidHistory {
+            id: self.kid_id,
+            period: self.period,
+            total: self.total,
+            result: self.result,
+            neg_count: self.neg_count,
+            post_count: self.post_count,
+            name: self.name,
+        }
+    }
+}
+
+#[cfg(feature = "server")]
 pub struct KidHistoryQuery {
     kid_id: u32,
     cursor: Option<Cursor>,
@@ -49,41 +78,40 @@ impl KidHistoryQuery {
     }
 
     pub async fn execute_with_db(&self, conn: &'static libsql::Connection) -> Result<KidHistoryResponse, ServerFnError> {
-        let mut trx = conn
-            .transaction_with_behavior(libsql::TransactionBehavior::Deferred)
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
-
         let cursor_clause = self.cursor_clause();
         let grain_format = self.granularity.grain_format();
 
-        let total = self
-            .fetch_total(&mut trx, &cursor_clause, &grain_format)
-            .await?;
+        let (mut periods, total_count) = self.fetch_periods(conn, &cursor_clause).await?;
 
-        if total == 0 {
+        if periods.is_empty() {
             return Ok(KidHistoryResponse {
                 history: vec![],
                 cursor: None,
                 granularity: grain_format.to_string(),
                 total_count: 0,
+                current_page: 1,
+                total_pages: 0,
             });
         }
 
-        let mut periods = self.fetch_periods(&mut trx, &cursor_clause).await?;
+        let current_page = (periods[0].row_num - 1) / self.page_size as u32 + 1;
+        let total_pages = (total_count + self.page_size as u32 - 1) / self.page_size as u32;
 
         let next_cursor = self.extract_next_cursor(&mut periods);
+        let kid_history: Vec<KidHistory> = periods.into_iter().map(|r| r.to_kid_history()).collect();
 
         Ok(KidHistoryResponse {
-            history: periods,
+            history: kid_history,
             cursor: next_cursor,
             granularity: grain_format.to_string(),
-            total_count: total,
+            total_count,
+            current_page,
+            total_pages,
         })
     }
 
     /// Extracts the next cursor from the periods list if there are more items than the page size.
-    fn extract_next_cursor(&self, periods: &mut Vec<KidHistory>) -> Option<String> {
+    fn extract_next_cursor(&self, periods: &mut Vec<NumberedHistoryRow>) -> Option<String> {
         if periods.len() > self.page_size as usize {
             let last_item = periods.pop().unwrap();
             let cursor_str = format!("{}|{}", last_item.period, self.granularity);
@@ -93,125 +121,124 @@ impl KidHistoryQuery {
         }
     }
 
-    /// Fetches the periods for the given kid_id, cursor and granularity.
+    /// Fetches the periods for the given kid_id, cursor and granularity with window functions.
     async fn fetch_periods(
         &self,
-        trx: &mut libsql::Transaction,
-        cursor_clause: &str,
-    ) -> Result<Vec<KidHistory>, ServerFnError> {
-        use crate::models::KidHistory;
-
+        conn: &'static libsql::Connection,
+        _cursor_clause: &str,
+    ) -> Result<(Vec<NumberedHistoryRow>, u32), ServerFnError> {
+        let grain_format = self.granularity.grain_format();
         let query = format!(
             "
-            WITH all_stats as ( SELECT
-                strftime('{}', notes.created_at) AS period,
-                SUM(quantity) AS total,
-            COUNT(
-                CASE
-                WHEN quantity = -1 THEN 1
-                END
-            ) neg_count,
-            COUNT(
-                CASE
-                WHEN quantity = 1 THEN 1
-                END
-            ) post_count,
-            kids.id AS kid_id,
-            kids.name AS name
-        FROM kids
-        LEFT JOIN notes ON notes.kid_id = kids.id
-        WHERE
-            kid_id = :kid_id
-            {}
-        GROUP BY
-            period
-        ORDER BY
-            period DESC)
-
-        select *, (neg_count + post_count) as result from all_stats lIMIT :limit
-",
-            self.granularity.grain_format(),
-            cursor_clause
+            WITH all_periods AS (
+                SELECT
+                    period,
+                    total,
+                    neg_count,
+                    post_count,
+                    kid_id,
+                    name,
+                    ROW_NUMBER() OVER (ORDER BY period DESC) as row_num
+                FROM (
+                    SELECT
+                        strftime('{grain_format}', notes.created_at) AS period,
+                        SUM(quantity) AS total,
+                        COUNT(CASE WHEN quantity = -1 THEN 1 END) neg_count,
+                        COUNT(CASE WHEN quantity = 1 THEN 1 END) post_count,
+                        kids.id AS kid_id,
+                        kids.name AS name
+                    FROM kids
+                    LEFT JOIN notes ON notes.kid_id = kids.id
+                    WHERE kid_id = :kid_id
+                    GROUP BY period
+                    ORDER BY period DESC
+                )
+            ),
+            total_counts AS (
+                SELECT COUNT(*) as total_count FROM all_periods
+            ),
+            cursor_row AS (
+                SELECT MAX(row_num) as max_row_num FROM (
+                    SELECT
+                        ROW_NUMBER() OVER (ORDER BY period DESC) as row_num,
+                        period
+                    FROM (
+                        SELECT strftime('{grain_format}', notes.created_at) AS period
+                        FROM kids
+                        LEFT JOIN notes ON notes.kid_id = kids.id
+                        WHERE kid_id = :kid_id
+                        GROUP BY period
+                        ORDER BY period DESC
+                    )
+                )
+                WHERE period = :cursor_value
+            )
+            SELECT
+                p.period,
+                p.total,
+                p.neg_count,
+                p.post_count,
+                p.kid_id,
+                p.name,
+                p.row_num,
+                t.total_count,
+                (p.neg_count + p.post_count) as result
+            FROM all_periods p
+            CROSS JOIN total_counts t
+            CROSS JOIN cursor_row c
+            WHERE p.row_num > COALESCE(c.max_row_num, 0)
+            ORDER BY p.period DESC
+            LIMIT :limit
+        "
         );
 
-        tracing::debug!("SQL get_paged_history: {}", query);
+        tracing::debug!("SQL fetch_periods: {}", query);
 
-        let stm = trx
+        let cursor_value = match &self.cursor {
+            Some(c) => c.grain_value.clone(),
+            None => "".to_string(),
+        };
+
+        let stm = conn
             .prepare(&query)
             .await
             .map_err(|e| ServerFnError::new(e.to_string()))?;
 
         let mut rows = stm
-            // TODO add grain value as named param
-            .query(libsql::named_params! { ":limit": self.page_size + 1, ":kid_id": self.kid_id })
+            .query(libsql::named_params! {
+                ":limit": self.page_size + 1,
+                ":kid_id": self.kid_id,
+                ":cursor_value": cursor_value
+            })
             .await
             .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-        let mut kid_history: Vec<KidHistory> = Vec::new();
+        let mut numbered_history: Vec<NumberedHistoryRow> = Vec::new();
+        let mut total_count = 0u32;
+
         while let Some(row) = rows
             .next()
             .await
             .map_err(|e| ServerFnError::new(e.to_string()))?
         {
-            use libsql::de;
+            let row_data = libsql::de::from_row::<NumberedHistoryRow>(&row)
+                .map_err(|e| ServerFnError::new(e.to_string()))?;
 
-            let kid =
-                de::from_row::<HistoryRow>(&row).map_err(|e| ServerFnError::new(e.to_string()))?;
-            kid_history.push(kid.into());
+            if numbered_history.is_empty() {
+                total_count = row_data.total_count;
+            }
+
+            numbered_history.push(row_data);
         }
 
-        Ok(kid_history)
-    }
-
-    /// Fetches the total count of periods for the given kid_id, cursor and granularity.
-    async fn fetch_total(
-        &self,
-        trx: &mut libsql::Transaction,
-        cursor_clause: &str,
-        granularity_format: &str,
-    ) -> Result<u32, ServerFnError> {
-        let query = format!(
-            "
-        WITH
-        all_stats AS (
-            SELECT
-                strftime('{}', notes.created_at) AS period
-            FROM
-                kids
-            LEFT JOIN notes ON notes.kid_id = kids.id
-            WHERE
-                kid_id = {}
-                {}
-            GROUP BY
-                period
-            ORDER BY
-                period DESC
-        )
-        SELECT
-        count(*) periods
-        FROM
-        all_stats
-            ",
-            granularity_format, self.kid_id, cursor_clause
-        );
-
-        tracing::debug!("SQL get_filter_total: {}", query);
-
-        let row = trx
-            .prepare(&query)
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?
-            .query_row(())
-            .await
-            .map_err(|e| ServerFnError::new(e.to_string()))?;
-
-        let total: u32 = row.get(0).map_err(|e| ServerFnError::new(e.to_string()))?;
-
-        Ok(total)
+        Ok((numbered_history, total_count))
     }
 }
 
 // ============================================
+// TESTS
+// ============================================
+
 // TESTS
 // ============================================
 
@@ -469,32 +496,38 @@ mod tests {
     fn test_extract_next_cursor_exact_page_size() {
         let query = KidHistoryQuery::new(1, None, 3, Granularity::Daily);
         let mut periods = vec![
-            KidHistory {
-                id: 1,
+            NumberedHistoryRow {
+                kid_id: 1,
                 period: "2024-01-03".to_string(),
                 total: 5,
                 result: 3,
                 neg_count: 0,
                 post_count: 3,
                 name: "Alice".to_string(),
+                row_num: 1,
+                total_count: 3,
             },
-            KidHistory {
-                id: 1,
+            NumberedHistoryRow {
+                kid_id: 1,
                 period: "2024-01-02".to_string(),
                 total: 2,
                 result: 1,
                 neg_count: 0,
                 post_count: 1,
                 name: "Alice".to_string(),
+                row_num: 2,
+                total_count: 3,
             },
-            KidHistory {
-                id: 1,
+            NumberedHistoryRow {
+                kid_id: 1,
                 period: "2024-01-01".to_string(),
                 total: 4,
                 result: 4,
                 neg_count: 0,
                 post_count: 4,
                 name: "Alice".to_string(),
+                row_num: 3,
+                total_count: 3,
             },
         ];
 
@@ -508,32 +541,38 @@ mod tests {
     fn test_extract_next_cursor_more_than_page_size() {
         let query = KidHistoryQuery::new(1, None, 2, Granularity::Daily);
         let mut periods = vec![
-            KidHistory {
-                id: 1,
+            NumberedHistoryRow {
+                kid_id: 1,
                 period: "2024-01-03".to_string(),
                 total: 5,
                 result: 3,
                 neg_count: 0,
                 post_count: 3,
                 name: "Alice".to_string(),
+                row_num: 1,
+                total_count: 3,
             },
-            KidHistory {
-                id: 1,
+            NumberedHistoryRow {
+                kid_id: 1,
                 period: "2024-01-02".to_string(),
                 total: 2,
                 result: 1,
                 neg_count: 0,
                 post_count: 1,
                 name: "Alice".to_string(),
+                row_num: 2,
+                total_count: 3,
             },
-            KidHistory {
-                id: 1,
+            NumberedHistoryRow {
+                kid_id: 1,
                 period: "2024-01-01".to_string(),
                 total: 4,
                 result: 4,
                 neg_count: 0,
                 post_count: 4,
                 name: "Alice".to_string(),
+                row_num: 3,
+                total_count: 3,
             },
         ];
 
@@ -559,6 +598,8 @@ mod tests {
 
         assert_eq!(result.history.len(), 0);
         assert_eq!(result.total_count, 0);
+        assert_eq!(result.current_page, 1);
+        assert_eq!(result.total_pages, 0);
         assert!(result.cursor.is_none());
     }
 
@@ -572,6 +613,8 @@ mod tests {
 
         assert_eq!(result.history.len(), 2);
         assert_eq!(result.total_count, 3);
+        assert_eq!(result.current_page, 1);
+        assert_eq!(result.total_pages, 2);
         assert!(result.cursor.is_some());
     }
 
@@ -592,7 +635,9 @@ mod tests {
         let result = query.execute_with_db(db_static).await.unwrap();
 
         assert_eq!(result.history.len(), 1);
-        assert_eq!(result.total_count, 1);
+        assert_eq!(result.total_count, 3);
+        assert_eq!(result.current_page, 1);
+        assert_eq!(result.total_pages, 1);
         assert!(result.cursor.is_none());
     }
 
@@ -605,6 +650,8 @@ mod tests {
         let result = query.execute_with_db(db_static).await.unwrap();
 
         assert_eq!(result.total_count, 3);
+        assert_eq!(result.total_pages, 1);
+        assert_eq!(result.current_page, 1);
     }
 
     #[tokio::test]
@@ -618,6 +665,8 @@ mod tests {
         assert_eq!(result.history.len(), 3);
         assert_eq!(result.history[0].name, "Alice");
         assert_eq!(result.history[0].id, 1);
+        assert_eq!(result.current_page, 1);
+        assert_eq!(result.total_pages, 1);
     }
 
     #[tokio::test]
@@ -633,5 +682,41 @@ mod tests {
         assert_eq!(middle_month.neg_count, 1);
         assert_eq!(middle_month.post_count, 2);
         assert_eq!(middle_month.result, 3);
+    }
+
+    #[tokio::test]
+    async fn test_execute_calculates_pagination_from_row_number() {
+        let db = setup_test_db().await;
+        let db_static = Box::leak(Box::new(db));
+
+        let query = KidHistoryQuery::new(1, None, 1, Granularity::Monthly);
+        let result = query.execute_with_db(db_static).await.unwrap();
+
+        assert_eq!(result.history.len(), 1);
+        assert_eq!(result.current_page, 1);
+        assert_eq!(result.total_pages, 3);
+        assert!(result.cursor.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_execute_second_page_correctly_identified() {
+        let db = setup_test_db().await;
+        let db_static = Box::leak(Box::new(db));
+
+        let now = Utc::now().naive_utc();
+        let first_month = (now - Duration::days(10)).format("%Y-%m").to_string();
+        let cursor = Cursor {
+            grain_value: first_month,
+            grain_format: "%Y-%m",
+            granularity: Granularity::Monthly,
+        };
+
+        let query = KidHistoryQuery::new(1, Some(cursor), 1, Granularity::Monthly);
+        let result = query.execute_with_db(db_static).await.unwrap();
+
+        assert_eq!(result.history.len(), 1);
+        assert_eq!(result.current_page, 2);
+        assert_eq!(result.total_pages, 3);
+        assert!(result.cursor.is_some());
     }
 }
