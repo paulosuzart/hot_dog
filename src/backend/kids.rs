@@ -1,6 +1,6 @@
-use crate::components::kid_history::KidHistoryPage;
 use crate::models::{
-    CountAggregation, GetKidsResponse, KidHistory, KidHistoryResponse, KidSummary,
+    CountAggregation, GetKidsResponse, HistoryDetailResponse, KidHistory, KidHistoryResponse,
+    KidSummary,
 };
 
 #[cfg(feature = "server")]
@@ -530,6 +530,26 @@ impl std::str::FromStr for Cursor {
     }
 }
 
+#[server]
+pub async fn get_history_details(
+    kid_id: u32,
+    period: String,
+    expected_count: u32,
+) -> Result<HistoryDetailResponse, ServerFnError> {
+    use crate::backend::history_details_query::HistoryDetailsRepository;
+    let conn = get_db().await;
+
+    let granularity = get_count_metadata()
+        .await?
+        .granularity
+        .parse::<Granularity>()
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    let repo = HistoryDetailsRepository::new(kid_id, period, granularity, expected_count);
+
+    repo.execute_query(&conn).await
+}
+
 /// Fetches a paginated history of counts for a specific kid based on the current granularity setting.
 #[server]
 pub async fn get_paged_history(
@@ -647,5 +667,78 @@ mod tests {
         let encoded = URL_SAFE.encode(b"2026-02-21DAILY");
         let result = Cursor::from_str(&encoded);
         assert!(result.is_err());
+    }
+
+    // ============================================
+    // Granularity::grain_value tests
+    // ============================================
+
+    #[test]
+    fn test_grain_value_daily_valid() {
+        let result = Granularity::Daily.grain_value("2026-02-21");
+        assert_eq!(result.unwrap(), "2026-02-21");
+    }
+
+    #[test]
+    fn test_grain_value_daily_invalid_format() {
+        assert!(Granularity::Daily.grain_value("2026-02").is_err());
+    }
+
+    #[test]
+    fn test_grain_value_daily_nonsense() {
+        assert!(Granularity::Daily.grain_value("not-a-date").is_err());
+    }
+
+    #[test]
+    fn test_grain_value_weekly_valid() {
+        let result = Granularity::Weekly.grain_value("2026-W08");
+        assert_eq!(result.unwrap(), "2026-W08");
+    }
+
+    #[test]
+    fn test_grain_value_weekly_missing_w_separator() {
+        // Must have the "-W" separator
+        assert!(Granularity::Weekly.grain_value("2026-08").is_err());
+    }
+
+    #[test]
+    fn test_grain_value_weekly_out_of_range_week() {
+        // ISO week 99 does not exist
+        assert!(Granularity::Weekly.grain_value("2026-W99").is_err());
+    }
+
+    #[test]
+    fn test_grain_value_monthly_valid() {
+        let result = Granularity::Monthly.grain_value("2026-02");
+        assert_eq!(result.unwrap(), "2026-02");
+    }
+
+    #[test]
+    fn test_grain_value_monthly_invalid_month() {
+        // Month 13 does not exist
+        assert!(Granularity::Monthly.grain_value("2026-13").is_err());
+    }
+
+    #[test]
+    fn test_grain_value_monthly_wrong_format() {
+        // Providing a full date to the monthly validator should fail
+        assert!(Granularity::Monthly.grain_value("2026-02-21").is_err());
+    }
+
+    #[test]
+    fn test_grain_value_yearly_valid() {
+        let result = Granularity::Yearly.grain_value("2026");
+        assert_eq!(result.unwrap(), "2026");
+    }
+
+    #[test]
+    fn test_grain_value_yearly_invalid() {
+        assert!(Granularity::Yearly.grain_value("not-a-year").is_err());
+    }
+
+    #[test]
+    fn test_grain_value_yearly_wrong_format() {
+        // Providing a full date to the yearly validator should fail
+        assert!(Granularity::Yearly.grain_value("2026-02").is_err());
     }
 }
