@@ -6,7 +6,7 @@ use base64::{engine::general_purpose::URL_SAFE, Engine as _};
 
 #[cfg(feature = "server")]
 use crate::{
-    backend::kids::{Cursor, Granularity, HistoryRow},
+    backend::kids::{Cursor, Granularity},
     models::{KidHistory, KidHistoryResponse},
 };
 
@@ -49,7 +49,12 @@ pub struct KidHistoryQuery {
 
 #[cfg(feature = "server")]
 impl KidHistoryQuery {
-    pub fn new(kid_id: u32, cursor: Option<Cursor>, page_size: u8, granularity: Granularity) -> Self {
+    pub fn new(
+        kid_id: u32,
+        cursor: Option<Cursor>,
+        page_size: u8,
+        granularity: Granularity,
+    ) -> Self {
         Self {
             kid_id,
             cursor: cursor,
@@ -77,7 +82,10 @@ impl KidHistoryQuery {
         self.execute_with_db(conn).await
     }
 
-    pub async fn execute_with_db(&self, conn: &'static libsql::Connection) -> Result<KidHistoryResponse, ServerFnError> {
+    pub async fn execute_with_db(
+        &self,
+        conn: &'static libsql::Connection,
+    ) -> Result<KidHistoryResponse, ServerFnError> {
         let cursor_clause = self.cursor_clause();
         let grain_format = self.granularity.grain_format();
 
@@ -99,7 +107,8 @@ impl KidHistoryQuery {
         let total_pages = (total_count + self.page_size as u32 - 1) / self.page_size as u32;
 
         let next_cursor = self.extract_next_cursor(&mut periods);
-        let kid_history: Vec<KidHistory> = periods.into_iter().map(|r| r.to_kid_history()).collect();
+        let kid_history: Vec<KidHistory> =
+            periods.into_iter().map(|r| r.to_kid_history()).collect();
 
         let kid_name = kid_history[0].name.clone();
         Ok(KidHistoryResponse {
@@ -253,242 +262,10 @@ impl KidHistoryQuery {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::backend::test_db::{setup_test_db, setup_two_period_db};
     use chrono::{Duration, Utc};
-    use libsql::{Builder, Connection};
-    use std::str::FromStr;
-
-    /// Creates a minimal in-memory DB with one kid that has notes in exactly two
-    /// calendar months.  Uses hard-coded dates so the test is not time-sensitive.
-    async fn setup_two_period_db() -> Connection {
-        let db = Builder::new_local(":memory:")
-            .build()
-            .await
-            .expect("Failed to create in-memory database");
-        let conn = db.connect().expect("Failed to connect");
-
-        conn.execute(
-            "CREATE TABLE kids (id integer PRIMARY KEY AUTOINCREMENT UNIQUE, name text NOT NULL, created_at text)",
-            (),
-        )
-        .await
-        .unwrap();
-        conn.execute(
-            "CREATE TABLE notes (id integer PRIMARY KEY, created_at text NOT NULL, quantity integer, kid_id integer NOT NULL)",
-            (),
-        )
-        .await
-        .unwrap();
-
-        conn.execute(
-            "INSERT INTO kids (name, created_at) VALUES ('Sam', '2026-01-01 00:00:00')",
-            (),
-        )
-        .await
-        .unwrap();
-
-        // Month 1 (most recent) — 2026-02
-        for day in [5u8, 10, 15] {
-            conn.execute(
-                &format!(
-                    "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, 1, '2026-02-{:02} 00:00:00')",
-                    day
-                ),
-                (),
-            )
-            .await
-            .unwrap();
-        }
-
-        // Month 2 (older) — 2026-01
-        for day in [10u8, 20] {
-            conn.execute(
-                &format!(
-                    "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, -1, '2026-01-{:02} 00:00:00')",
-                    day
-                ),
-                (),
-            )
-            .await
-            .unwrap();
-        }
-
-        conn
-    }
     use std::boxed::Box;
-
-    /// Creates an in-memory SQLite database with test schema and data
-    async fn setup_test_db() -> Connection {
-        let db = Builder::new_local(":memory:")
-            .build()
-            .await
-            .expect("Failed to create in-memory database");
-
-        let db_conn = db.connect().expect("Failed to connect to in-memory database");
-
-        // Create schema
-        db_conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS settings (
-                    id integer PRIMARY KEY AUTOINCREMENT,
-                    granularity text NOT NULL,
-                    created_at text DEFAULT 'datetime(\"now\", \"utc\")'
-                )",
-                (),
-            )
-            .await
-            .expect("Failed to create settings table");
-
-        db_conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS kids (
-                    id integer PRIMARY KEY AUTOINCREMENT UNIQUE,
-                    name text NOT NULL,
-                    created_at text DEFAULT 'datetime(\"now\", \"utc\")'
-                )",
-                (),
-            )
-            .await
-            .expect("Failed to create kids table");
-
-        db_conn
-            .execute(
-                "CREATE TABLE IF NOT EXISTS notes (
-                    id integer PRIMARY KEY,
-                    created_at text DEFAULT 'datetime(''now'', ''utc'')' NOT NULL,
-                    quantity integer,
-                    kid_id integer NOT NULL,
-                    FOREIGN KEY (kid_id) REFERENCES kids(id) ON UPDATE NO ACTION ON DELETE CASCADE
-                )",
-                (),
-            )
-            .await
-            .expect("Failed to create notes table");
-
-        db_conn
-            .execute(
-                "CREATE INDEX IF NOT EXISTS kid_id_idx ON notes (kid_id, quantity)",
-                (),
-            )
-            .await
-            .expect("Failed to create index");
-
-        // Insert test data
-        let now = Utc::now().naive_utc();
-
-        // Kid 1: "Alice" with notes across 3 months
-        let alice_name = "Alice";
-        db_conn
-            .execute(
-                "INSERT INTO kids (name, created_at) VALUES (?1, ?2)",
-                libsql::params![alice_name, now.format("%Y-%m-%d %H:%M:%S").to_string()],
-            )
-            .await
-            .expect("Failed to insert Alice");
-
-        // Month 3 (most recent): 3 positive notes
-        for i in 0..3 {
-            let note_time = (now - Duration::days(10 - i))
-                .format("%Y-%m-%d %H:%M:%S")
-                .to_string();
-            db_conn
-                .execute(
-                    "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, 1, ?1)",
-                    libsql::params![note_time],
-                )
-                .await
-                .expect("Failed to insert Alice note");
-        }
-
-        // Month 2: 2 positive, 1 negative
-        for i in 0..2 {
-            let note_time = (now - Duration::days(30 + i * 3))
-                .format("%Y-%m-%d %H:%M:%S")
-                .to_string();
-            db_conn
-                .execute(
-                    "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, 1, ?1)",
-                    libsql::params![note_time],
-                )
-                .await
-                .expect("Failed to insert Alice note");
-        }
-        let note_time = (now - Duration::days(38))
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string();
-        db_conn
-            .execute(
-                "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, -1, ?1)",
-                libsql::params![note_time],
-            )
-            .await
-            .expect("Failed to insert Alice note");
-
-        // Month 1 (oldest): 4 positive notes
-        for i in 0..4 {
-            let note_time = (now - Duration::days(60 + i * 2))
-                .format("%Y-%m-%d %H:%M:%S")
-                .to_string();
-            db_conn
-                .execute(
-                    "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, 1, ?1)",
-                    libsql::params![note_time],
-                )
-                .await
-                .expect("Failed to insert Alice note");
-        }
-
-        // Kid 2: "Bob" with notes across 2 months
-        let bob_name = "Bob";
-        db_conn
-            .execute(
-                "INSERT INTO kids (name, created_at) VALUES (?1, ?2)",
-                libsql::params![bob_name, now.format("%Y-%m-%d %H:%M:%S").to_string()],
-            )
-            .await
-            .expect("Failed to insert Bob");
-
-        // Month 2 (most recent): 5 positive notes
-        for i in 0..5 {
-            let note_time = (now - Duration::days(20 - i))
-                .format("%Y-%m-%d %H:%M:%S")
-                .to_string();
-            db_conn
-                .execute(
-                    "INSERT INTO notes (kid_id, quantity, created_at) VALUES (2, 1, ?1)",
-                    libsql::params![note_time],
-                )
-                .await
-                .expect("Failed to insert Bob note");
-        }
-
-        // Month 1 (oldest): 2 positive, 2 negative
-        for i in 0..2 {
-            let note_time = (now - Duration::days(50 + i * 3))
-                .format("%Y-%m-%d %H:%M:%S")
-                .to_string();
-            db_conn
-                .execute(
-                    "INSERT INTO notes (kid_id, quantity, created_at) VALUES (2, 1, ?1)",
-                    libsql::params![note_time],
-                )
-                .await
-                .expect("Failed to insert Bob note");
-        }
-        for i in 0..2 {
-            let note_time = (now - Duration::days(55 + i * 3))
-                .format("%Y-%m-%d %H:%M:%S")
-                .to_string();
-            db_conn
-                .execute(
-                    "INSERT INTO notes (kid_id, quantity, created_at) VALUES (2, -1, ?1)",
-                    libsql::params![note_time],
-                )
-                .await
-                .expect("Failed to insert Bob note");
-        }
-
-        db_conn
-    }
+    use std::str::FromStr;
 
     // ============================================
     // UNIT TESTS
@@ -801,7 +578,10 @@ mod tests {
         assert_eq!(page1.history.len(), 1, "page 1 should have 1 item");
         assert_eq!(page1.current_page, 1);
         assert_eq!(page1.total_pages, 2);
-        assert!(page1.cursor.is_some(), "page 1 must expose a next-page cursor");
+        assert!(
+            page1.cursor.is_some(),
+            "page 1 must expose a next-page cursor"
+        );
 
         // Build page-2 query from the encoded cursor returned by page 1.
         let cursor2 = Cursor::from_str(page1.cursor.as_ref().unwrap())
@@ -812,10 +592,12 @@ mod tests {
         assert_eq!(page2.history.len(), 1, "page 2 must not be empty");
         assert_eq!(page2.current_page, 2);
         assert_eq!(page2.total_pages, 2);
-        assert!(page2.cursor.is_none(), "page 2 is the last page — no cursor expected");
+        assert!(
+            page2.cursor.is_none(),
+            "page 2 is the last page — no cursor expected"
+        );
         assert_ne!(
-            page1.history[0].period,
-            page2.history[0].period,
+            page1.history[0].period, page2.history[0].period,
             "pages must show different periods"
         );
     }

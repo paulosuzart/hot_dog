@@ -1,6 +1,6 @@
-use crate::components::kid_history::KidHistoryPage;
 use crate::models::{
-    CountAggregation, GetKidsResponse, KidHistory, KidHistoryResponse, KidSummary,
+    CountAggregation, GetKidsResponse, HistoryDetailResponse, KidHistory, KidHistoryResponse,
+    KidSummary,
 };
 
 #[cfg(feature = "server")]
@@ -203,7 +203,7 @@ pub async fn get_granularity() -> Result<String, ServerFnError> {
     Ok(settings.granularity)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Granularity {
     Daily,
     Weekly,
@@ -218,6 +218,41 @@ impl Granularity {
             Granularity::Weekly => "%Y-W%W",
             Granularity::Monthly => "%Y-%m",
             Granularity::Yearly => "%Y",
+        }
+    }
+
+    pub fn grain_value(&self, gt: &str) -> Result<String, String> {
+        match self {
+            Granularity::Daily => {
+                chrono::NaiveDate::parse_from_str(&gt, "%Y-%m-%d")
+                    .map_err(|e| format!("Invalid date in cursor: {}. Error: {}", gt, e))?;
+                Ok(gt.to_string())
+            }
+            Granularity::Weekly => {
+                let (year_str, week_str) = gt.split_once("-W").ok_or_else(|| {
+                    format!("Invalid weekly cursor format: {}. Expected 'YYYY-Www'", gt)
+                })?;
+                let year = year_str
+                    .parse::<i32>()
+                    .map_err(|e| format!("Invalid year in cursor: {}. Error: {}", year_str, e))?;
+                let week = week_str
+                    .parse::<u32>()
+                    .map_err(|e| format!("Invalid week in cursor: {}. Error: {}", week_str, e))?;
+                chrono::NaiveDate::from_isoywd_opt(year, week, chrono::Weekday::Mon)
+                    .ok_or_else(|| format!("Invalid ISO week date in cursor: {}", gt))?;
+
+                Ok(gt.to_string())
+            }
+            Granularity::Monthly => {
+                chrono::NaiveDate::parse_from_str(&format!("{}-01", gt), "%Y-%m-%d")
+                    .map_err(|e| format!("Invalid date in cursor: {}. Error: {}", gt, e))?;
+                Ok(gt.to_string())
+            }
+            Granularity::Yearly => {
+                chrono::NaiveDate::parse_from_str(&format!("{}-01-01", gt), "%Y-%m-%d")
+                    .map_err(|e| format!("Invalid date in cursor: {}. Error: {}", gt, e))?;
+                Ok(gt.to_string())
+            }
         }
     }
 }
@@ -266,31 +301,6 @@ pub async fn update_granularity(granularity: String) -> Result<(), ServerFnError
     .await
     .map_err(|e| ServerFnError::new(e.to_string()))?;
     Ok(())
-}
-
-/// Helper function to determine the grain format and value for SQL queries based on the current granularity setting.
-/// TODO: Move to granularity itself
-// #[cfg(feature = "server")]
-fn get_grain(
-    granularity: Granularity,
-    now: &chrono::NaiveDateTime,
-) -> Result<(&'static str, String), ServerFnError> {
-    use chrono::Datelike;
-    return match granularity {
-        Granularity::Daily => Ok(("%Y-%m-%d", now.format("%Y-%m-%d").to_string())),
-        Granularity::Weekly => {
-            let week_start =
-                *now - chrono::Duration::days(now.weekday().num_days_from_monday() as i64);
-            Ok(("%Y-W%W", week_start.format("%Y-%m-%d 00:00:00").to_string()))
-        }
-        Granularity::Monthly => Ok(("%Y-%m", now.format("%Y-%m").to_string())),
-        Granularity::Yearly => Ok(("%Y", now.format("%Y").to_string())),
-        _ => {
-            return Err(ServerFnError::new(
-                "Invalid granularity in settings".to_string(),
-            ))
-        }
-    };
 }
 
 /// Fetches the list of kids along with their count metadata.
@@ -510,38 +520,7 @@ impl std::str::FromStr for Cursor {
         let cursor_granularity = Granularity::from_str(&granularity)
             .map_err(|e| format!("Invalid granularity in cursor: {}. Error: {}", s, e))?;
 
-        let grain_value = match cursor_granularity {
-            Granularity::Daily => {
-                chrono::NaiveDate::parse_from_str(&gt, "%Y-%m-%d")
-                    .map_err(|e| format!("Invalid date in cursor: {}. Error: {}", gt, e))?;
-                gt.to_string()
-            }
-            Granularity::Weekly => {
-                let (year_str, week_str) = gt.split_once("-W").ok_or_else(|| {
-                    format!("Invalid weekly cursor format: {}. Expected 'YYYY-Www'", gt)
-                })?;
-                let year = year_str
-                    .parse::<i32>()
-                    .map_err(|e| format!("Invalid year in cursor: {}. Error: {}", year_str, e))?;
-                let week = week_str
-                    .parse::<u32>()
-                    .map_err(|e| format!("Invalid week in cursor: {}. Error: {}", week_str, e))?;
-                chrono::NaiveDate::from_isoywd_opt(year, week, chrono::Weekday::Mon)
-                    .ok_or_else(|| format!("Invalid ISO week date in cursor: {}", gt))?;
-
-                gt.to_string()
-            }
-            Granularity::Monthly => {
-                chrono::NaiveDate::parse_from_str(&format!("{}-01", gt), "%Y-%m-%d")
-                    .map_err(|e| format!("Invalid date in cursor: {}. Error: {}", gt, e))?;
-                gt.to_string()
-            }
-            Granularity::Yearly => {
-                chrono::NaiveDate::parse_from_str(&format!("{}-01-01", gt), "%Y-%m-%d")
-                    .map_err(|e| format!("Invalid date in cursor: {}. Error: {}", gt, e))?;
-                gt.to_string()
-            }
-        };
+        let grain_value = cursor_granularity.grain_value(gt)?;
 
         Ok(Cursor {
             grain_value,
@@ -549,6 +528,26 @@ impl std::str::FromStr for Cursor {
             granularity: cursor_granularity,
         })
     }
+}
+
+#[server]
+pub async fn get_history_details(
+    kid_id: u32,
+    period: String,
+    expected_count: usize,
+) -> Result<HistoryDetailResponse, ServerFnError> {
+    use crate::backend::history_details_query::HistoryDetailsRepository;
+    let conn = get_db().await;
+
+    let granularity = get_count_metadata()
+        .await?
+        .granularity
+        .parse::<Granularity>()
+        .map_err(|e| ServerFnError::new(e.to_string()))?;
+
+    let repo = HistoryDetailsRepository::new(kid_id, period, granularity, expected_count);
+
+    repo.execute_query(&conn).await
 }
 
 /// Fetches a paginated history of counts for a specific kid based on the current granularity setting.
@@ -560,7 +559,10 @@ pub async fn get_paged_history(
 ) -> Result<KidHistoryResponse, ServerFnError> {
     use crate::backend::history_query::KidHistoryQuery;
 
-    let granularity = get_count_metadata().await?.granularity.parse::<Granularity>()
+    let granularity = get_count_metadata()
+        .await?
+        .granularity
+        .parse::<Granularity>()
         .map_err(|e| ServerFnError::new(e.to_string()))?;
 
     let parsed_cursor = cursor.and_then(|c| Cursor::from_str(&c).ok());
@@ -573,8 +575,10 @@ pub async fn get_paged_history(
             ));
         }
     }
-    
-    KidHistoryQuery::new(kid_id, parsed_cursor, page_size, granularity).execute().await
+
+    KidHistoryQuery::new(kid_id, parsed_cursor, page_size, granularity)
+        .execute()
+        .await
 }
 
 // ============================================
@@ -663,5 +667,78 @@ mod tests {
         let encoded = URL_SAFE.encode(b"2026-02-21DAILY");
         let result = Cursor::from_str(&encoded);
         assert!(result.is_err());
+    }
+
+    // ============================================
+    // Granularity::grain_value tests
+    // ============================================
+
+    #[test]
+    fn test_grain_value_daily_valid() {
+        let result = Granularity::Daily.grain_value("2026-02-21");
+        assert_eq!(result.unwrap(), "2026-02-21");
+    }
+
+    #[test]
+    fn test_grain_value_daily_invalid_format() {
+        assert!(Granularity::Daily.grain_value("2026-02").is_err());
+    }
+
+    #[test]
+    fn test_grain_value_daily_nonsense() {
+        assert!(Granularity::Daily.grain_value("not-a-date").is_err());
+    }
+
+    #[test]
+    fn test_grain_value_weekly_valid() {
+        let result = Granularity::Weekly.grain_value("2026-W08");
+        assert_eq!(result.unwrap(), "2026-W08");
+    }
+
+    #[test]
+    fn test_grain_value_weekly_missing_w_separator() {
+        // Must have the "-W" separator
+        assert!(Granularity::Weekly.grain_value("2026-08").is_err());
+    }
+
+    #[test]
+    fn test_grain_value_weekly_out_of_range_week() {
+        // ISO week 99 does not exist
+        assert!(Granularity::Weekly.grain_value("2026-W99").is_err());
+    }
+
+    #[test]
+    fn test_grain_value_monthly_valid() {
+        let result = Granularity::Monthly.grain_value("2026-02");
+        assert_eq!(result.unwrap(), "2026-02");
+    }
+
+    #[test]
+    fn test_grain_value_monthly_invalid_month() {
+        // Month 13 does not exist
+        assert!(Granularity::Monthly.grain_value("2026-13").is_err());
+    }
+
+    #[test]
+    fn test_grain_value_monthly_wrong_format() {
+        // Providing a full date to the monthly validator should fail
+        assert!(Granularity::Monthly.grain_value("2026-02-21").is_err());
+    }
+
+    #[test]
+    fn test_grain_value_yearly_valid() {
+        let result = Granularity::Yearly.grain_value("2026");
+        assert_eq!(result.unwrap(), "2026");
+    }
+
+    #[test]
+    fn test_grain_value_yearly_invalid() {
+        assert!(Granularity::Yearly.grain_value("not-a-year").is_err());
+    }
+
+    #[test]
+    fn test_grain_value_yearly_wrong_format() {
+        // Providing a full date to the yearly validator should fail
+        assert!(Granularity::Yearly.grain_value("2026-02").is_err());
     }
 }

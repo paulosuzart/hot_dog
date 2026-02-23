@@ -116,3 +116,18 @@ pub struct KidHistory {
     pub post_count: i32,
     pub name: String,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct HistoryDetailResponse {
+    pub kid_id: u32,
+    pub notes: Vec<NoteDetails>,
+    pub needs_reload: bool,
+    pub max_notes_reached: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct NoteDetails {
+    pub kid_id: u32,
+    pub quantity: i32,
+    pub created_at: NaiveDateTime,
+}
