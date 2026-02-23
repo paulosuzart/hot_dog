@@ -6,6 +6,7 @@ use base64::{engine::general_purpose::URL_SAFE, Engine as _};
 
 #[cfg(feature = "server")]
 use crate::{
+    backend::constants::MAX_HISTORY_PAGE_SIZE,
     backend::kids::{Cursor, Granularity},
     models::{KidHistory, KidHistoryResponse},
 };
@@ -55,10 +56,19 @@ impl KidHistoryQuery {
         page_size: u8,
         granularity: Granularity,
     ) -> Self {
+        let final_page_size = std::cmp::min(page_size, *MAX_HISTORY_PAGE_SIZE);
+        if final_page_size != page_size {
+            tracing::warn!(
+                "Using default page size. Request {} exceeded system max {}",
+                page_size,
+                *MAX_HISTORY_PAGE_SIZE
+            );
+        }
+
         Self {
             kid_id,
             cursor: cursor,
-            page_size,
+            page_size: final_page_size,
             granularity,
         }
     }
@@ -270,6 +280,18 @@ mod tests {
     // ============================================
     // UNIT TESTS
     // ============================================
+
+    #[test]
+    fn test_new_create_query_with_correct_page_size() {
+        let exceeding_page_size = *MAX_HISTORY_PAGE_SIZE + 1;
+        let granularity = Granularity::Daily;
+        let query = KidHistoryQuery::new(1, None, exceeding_page_size, granularity);
+
+        assert_eq!(query.kid_id, 1);
+        assert!(query.cursor.is_none());
+        assert_eq!(query.page_size, *MAX_HISTORY_PAGE_SIZE);
+        assert_eq!(query.granularity, Granularity::Daily);
+    }
 
     #[test]
     fn test_new_creates_query() {

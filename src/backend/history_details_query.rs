@@ -10,7 +10,7 @@ use crate::backend::kids::Granularity;
 use crate::models::HistoryDetailResponse;
 
 #[cfg(feature = "server")]
-const MAX_HISTORY_ITEMS: usize = 50;
+use super::constants::MAX_HISTORY_DETAIL_PAGE_SIZE;
 
 #[cfg(feature = "server")]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,7 +47,7 @@ impl HistoryDetailsRepository {
             .grain_value(&self.period)
             .map_err(|e| ServerFnError::new(format!("Failed to parse grain value: {}", e)))?;
 
-        let limit = MAX_HISTORY_ITEMS + 1;
+        let limit = *MAX_HISTORY_DETAIL_PAGE_SIZE + 1;
         let query = format!(
             "
         SELECT
@@ -106,13 +106,13 @@ impl HistoryDetailsRepository {
 
         let result_len = results.len();
         // Simple trick to limit the max result to 50;
-        if result_len > MAX_HISTORY_ITEMS {
+        if result_len > *MAX_HISTORY_DETAIL_PAGE_SIZE {
             results.pop();
             tracing::warn!(
                 "Kid {} with more than Max notes limit: {}. Returning {} recent notes.",
                 self.kid_id,
-                MAX_HISTORY_ITEMS,
-                MAX_HISTORY_ITEMS
+                *MAX_HISTORY_DETAIL_PAGE_SIZE,
+                *MAX_HISTORY_DETAIL_PAGE_SIZE
             )
         }
 
@@ -120,7 +120,7 @@ impl HistoryDetailsRepository {
             kid_id: self.kid_id,
             notes: results,
             needs_reload: result_len != self.expected_count,
-            max_notes_reached: result_len > MAX_HISTORY_ITEMS,
+            max_notes_reached: result_len > *MAX_HISTORY_DETAIL_PAGE_SIZE,
         })
     }
 }
@@ -266,9 +266,9 @@ mod tests {
         );
         assert_eq!(
             result.notes.len(),
-            MAX_HISTORY_ITEMS,
+            *MAX_HISTORY_DETAIL_PAGE_SIZE,
             "should cap at {} notes",
-            MAX_HISTORY_ITEMS
+            *MAX_HISTORY_DETAIL_PAGE_SIZE,
         );
     }
 
