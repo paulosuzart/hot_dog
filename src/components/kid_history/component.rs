@@ -86,8 +86,7 @@ fn HistoryDetails(kid_id: u32, period: String, expected_count: usize) -> Element
             } else {
                 rsx! {
                     if response.max_notes_reached {
-                        div {
-                            style: "display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background-color: #fef3c7; color: #92400e; font-size: 0.75rem; border-bottom: 1px solid #fde68a;",
+                        div { style: "display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background-color: #fef3c7; color: #92400e; font-size: 0.75rem; border-bottom: 1px solid #fde68a;",
                             svg {
                                 xmlns: "http://www.w3.org/2000/svg",
                                 fill: "none",
@@ -138,7 +137,7 @@ fn HistoryList(items: Vec<KidHistory>, page: usize) -> Element {
 
     rsx! {
         div { style: "border-radius: 0.75rem; border: 1px solid #e5e7eb; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden; width: 100%;",
-            for (i, h) in items.iter().enumerate() {
+            for (i , h) in items.iter().enumerate() {
                 div {
                     key: "{i}",
                     style: if i > 0 { "border-top: 1px solid #e5e7eb;" } else { "" },
@@ -167,8 +166,7 @@ fn HistoryList(items: Vec<KidHistory>, page: usize) -> Element {
                                 let bg = if h.total >= 0 { "#dcfce7" } else { "#fee2e2" };
                                 let color = if h.total >= 0 { "#16a34a" } else { "#dc2626" };
                                 rsx! {
-                                    span {
-                                        style: "flex-shrink: 0; font-size: 1.5rem; font-weight: 700; padding: 0.5rem 1rem; border-radius: 0.5rem; background-color: {bg}; color: {color};",
+                                    span { style: "flex-shrink: 0; font-size: 1.5rem; font-weight: 700; padding: 0.5rem 1rem; border-radius: 0.5rem; background-color: {bg}; color: {color};",
                                         "{h.total}"
                                     }
                                 }
@@ -177,7 +175,11 @@ fn HistoryList(items: Vec<KidHistory>, page: usize) -> Element {
 
                         // Chevron rotates when item is expanded
                         {
-                            let rotation = if open.read().get(i).copied().unwrap_or(false) { "rotate(180deg)" } else { "rotate(0deg)" };
+                            let rotation = if open.read().get(i).copied().unwrap_or(false) {
+                                "rotate(180deg)"
+                            } else {
+                                "rotate(0deg)"
+                            };
                             rsx! {
                                 svg {
                                     xmlns: "http://www.w3.org/2000/svg",
@@ -212,7 +214,7 @@ fn HistoryList(items: Vec<KidHistory>, page: usize) -> Element {
     }
 }
 
-const PAGE_SIZE: u8 = 1;
+const PAGE_SIZE: u8 = 15;
 
 #[component]
 pub fn KidHistoryPage(kid_id: u32) -> Element {
@@ -315,7 +317,13 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
                     let history_read = history.read();
                     match history_read.as_ref().and_then(|r| r.as_ref().ok()) {
                         Some(response) => {
-                            let initial = response.name.chars().next().unwrap_or('?').to_uppercase().to_string();
+                            let initial = response
+                                .name
+                                .chars()
+                                .next()
+                                .unwrap_or('?')
+                                .to_uppercase()
+                                .to_string();
                             let name = response.name.clone();
                             rsx! {
                                 div { style: "display: flex; align-items: center; gap: 0.75rem;",
@@ -339,11 +347,7 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
 
                     // Previous
                     button {
-                        style: if current_page() == 1 {
-                            "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db; transition: all 0.15s;"
-                        } else {
-                            "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #9ca3af; transition: all 0.15s;"
-                        },
+                        style: if current_page() == 1 { "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db; transition: all 0.15s;" } else { "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #9ca3af; transition: all 0.15s;" },
                         disabled: current_page() == 1,
                         onclick: move |_| {
                             if current_page() > 1 {
@@ -368,11 +372,7 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
 
                     // Next
                     button {
-                        style: if !has_next() {
-                            "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db; transition: all 0.15s;"
-                        } else {
-                            "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #374151; transition: all 0.15s;"
-                        },
+                        style: if !has_next() { "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db; transition: all 0.15s;" } else { "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #374151; transition: all 0.15s;" },
                         disabled: !has_next(),
                         onclick: move |_| {
                             // cursor for page current_page+1 is at stack index current_page()
