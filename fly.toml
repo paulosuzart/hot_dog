@@ -23,5 +23,6 @@ primary_region = 'fra'
   memory_mb = 1024
 
 [metrics]
+port = 8080
 path = "/metrics"
 processes = ["app"]
