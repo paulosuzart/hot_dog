@@ -38,6 +38,7 @@ async fn requires_fly_io_source(
     req: axum::http::Request<axum::body::Body>,
     next: Next,
 ) -> impl IntoResponse {
+    tracing::info!("metrics request from {}", addr.ip());
     if is_flyio_internal(addr.ip()) {
         Ok(next.run(req).await)
     } else {
