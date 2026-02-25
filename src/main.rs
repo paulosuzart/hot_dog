@@ -45,28 +45,39 @@ async fn requires_fly_io_source(
     }
 }
 
+#[cfg(feature = "server")]
+#[tokio::main]
+async fn main() {
+    use axum::{middleware, routing::get};
+    use axum_prometheus::PrometheusMetricLayerBuilder;
+
+    let (prometheus_layer, metric_handle) = PrometheusMetricLayerBuilder::new()
+        .with_default_metrics()
+        .build_pair();
+
+    let router = dioxus::server::router(app)
+        .route(
+            "/metrics",
+            get(move || async move { metric_handle.render() })
+                .layer(middleware::from_fn(requires_fly_io_source)),
+        )
+        .layer(prometheus_layer);
+
+    let ip = std::env::var("IP").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let listener = tokio::net::TcpListener::bind(format!("{ip}:{port}"))
+        .await
+        .unwrap();
+    axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
+}
+
+#[cfg(not(feature = "server"))]
 fn main() {
-    #[cfg(feature = "server")]
-    dioxus::serve(|| async move {
-        use axum::{middleware, routing::get};
-        use axum_prometheus::PrometheusMetricLayerBuilder;
-
-        let (prometheus_layer, metric_handle) = PrometheusMetricLayerBuilder::new()
-            .with_default_metrics()
-            .build_pair();
-
-        let router = dioxus::server::router(app)
-            .route(
-                "/metrics",
-                get(move || async move { metric_handle.render() })
-                    .layer(middleware::from_fn(requires_fly_io_source)),
-            )
-            .layer(prometheus_layer);
-
-        Ok(router)
-    });
-
-    #[cfg(not(feature = "server"))]
     dioxus::launch(app);
 }
 
@@ -125,5 +136,27 @@ fn KidHistory(id: u32) -> Element {
                 KidHistoryPage { kid_id: id }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fly_internal_ipv6_is_allowed() {
+        let ip: IpAddr = "fdaa::1".parse().unwrap();
+        assert!(is_flyio_internal(ip));
+    }
+
+    #[test]
+    fn non_fly_ipv6_is_blocked() {
+        let ip: IpAddr = "2001:db8::1".parse().unwrap();
+        assert!(!is_flyio_internal(ip));
+    }
+
+    #[test]
+    fn loopback_is_allowed() {
+        assert!(is_flyio_internal("127.0.0.1".parse().unwrap()));
     }
 }
