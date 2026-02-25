@@ -49,6 +49,7 @@ async fn requires_fly_io_source(
 #[cfg(feature = "server")]
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt::init();
     use axum::{middleware, routing::get};
     use axum_prometheus::PrometheusMetricLayerBuilder;
 
