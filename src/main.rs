@@ -5,6 +5,7 @@ mod notica_component;
 
 #[cfg(feature = "server")]
 use std::net::{IpAddr, SocketAddr};
+use std::sync::Arc;
 
 #[cfg(feature = "server")]
 use axum::extract::ConnectInfo;
@@ -22,60 +23,37 @@ use components::toast::ToastProvider;
 use notica_component::NoticaApp;
 
 #[cfg(feature = "server")]
-fn is_flyio_internal(ip: IpAddr) -> bool {
-    match ip {
-        IpAddr::V6(v6) => {
-            let b = v6.octets();
-            b[0] == 0xfd && b[1] == 0xaa
-        }
-        IpAddr::V4(v4) => v4.is_loopback(),
-    }
-}
-
-#[cfg(feature = "server")]
-async fn requires_fly_io_source(
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    req: axum::http::Request<axum::body::Body>,
-    next: Next,
-) -> impl IntoResponse {
-    tracing::info!("metrics request from {}", addr.ip());
-    if is_flyio_internal(addr.ip()) {
-        Ok(next.run(req).await)
-    } else {
-        Err(StatusCode::FORBIDDEN)
-    }
-}
-
-#[cfg(feature = "server")]
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), std::io::Error> {
     tracing_subscriber::fmt::init();
-    use axum::{middleware, routing::get};
+    use axum::{routing::get, Router};
     use axum_prometheus::PrometheusMetricLayerBuilder;
 
     let (prometheus_layer, metric_handle) = PrometheusMetricLayerBuilder::new()
         .with_default_metrics()
         .build_pair();
 
-    let router = dioxus::server::router(app)
-        .route(
-            "/metrics",
-            get(move || async move { metric_handle.render() })
-                .layer(middleware::from_fn(requires_fly_io_source)),
-        )
-        .layer(prometheus_layer);
+    let metrics = Router::new().route("/metrics", get(|| async move { metric_handle.render() }));
+
+    let metrics_ip = std::env::var("HD_METRICS_IP").unwrap_or_else(|_| "0.0.0.0".to_string());
+    let metrics_port = std::env::var("HD_METRICS_PORT").unwrap_or_else(|_| "9090".to_string());
+
+    let metrics_listener =
+        tokio::net::TcpListener::bind(format!("{metrics_ip}:{metrics_port}")).await?;
+
+    let router = dioxus::server::router(app).layer(prometheus_layer);
 
     let ip = std::env::var("IP").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
-    let listener = tokio::net::TcpListener::bind(format!("{ip}:{port}"))
-        .await
-        .unwrap();
-    axum::serve(
-        listener,
-        router.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .await
-    .unwrap();
+    let listener = tokio::net::TcpListener::bind(format!("{ip}:{port}")).await?;
+
+    // triggers both app router and metrics router
+    tokio::try_join!(
+        axum::serve(listener, router),
+        axum::serve(metrics_listener, metrics)
+    )?;
+
+    Ok(())
 }
 
 #[cfg(not(feature = "server"))]
@@ -138,27 +116,5 @@ fn KidHistory(id: u32) -> Element {
                 KidHistoryPage { kid_id: id }
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn fly_internal_ipv6_is_allowed() {
-        let ip: IpAddr = "fdaa::1".parse().unwrap();
-        assert!(is_flyio_internal(ip));
-    }
-
-    #[test]
-    fn non_fly_ipv6_is_blocked() {
-        let ip: IpAddr = "2001:db8::1".parse().unwrap();
-        assert!(!is_flyio_internal(ip));
-    }
-
-    #[test]
-    fn loopback_is_allowed() {
-        assert!(is_flyio_internal("127.0.0.1".parse().unwrap()));
     }
 }

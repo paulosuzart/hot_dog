@@ -30,5 +30,8 @@ ENV IP=0.0.0.0
 # expose the port 8080
 EXPOSE 8080
 
+# expose metrics port 9090
+EXPOSE 9090
+
 WORKDIR /usr/local/app
 ENTRYPOINT [ "/usr/local/app/hot_dog" ]
