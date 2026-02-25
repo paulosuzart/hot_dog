@@ -3,6 +3,16 @@ mod components;
 mod models;
 mod notica_component;
 
+#[cfg(feature = "server")]
+use std::net::{IpAddr, SocketAddr};
+
+#[cfg(feature = "server")]
+use axum::extract::ConnectInfo;
+
+#[cfg(feature = "server")]
+use axum::middleware::Next;
+#[cfg(feature = "server")]
+use axum::response::IntoResponse;
 use dioxus::prelude::*;
 
 use components::about::AboutPage;
@@ -11,10 +21,34 @@ use components::settings::SettingsPage;
 use components::toast::ToastProvider;
 use notica_component::NoticaApp;
 
+#[cfg(feature = "server")]
+fn is_flyio_internal(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V6(v6) => {
+            let b = v6.octets();
+            b[0] == 0xfd && b[1] == 0xaa
+        }
+        IpAddr::V4(v4) => v4.is_loopback(),
+    }
+}
+
+#[cfg(feature = "server")]
+async fn requires_fly_io_source(
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    req: axum::http::Request<axum::body::Body>,
+    next: Next,
+) -> impl IntoResponse {
+    if is_flyio_internal(addr.ip()) {
+        Ok(next.run(req).await)
+    } else {
+        Err(StatusCode::FORBIDDEN)
+    }
+}
+
 fn main() {
     #[cfg(feature = "server")]
     dioxus::serve(|| async move {
-        use axum::routing::get;
+        use axum::{middleware, routing::get};
         use axum_prometheus::PrometheusMetricLayerBuilder;
 
         let (prometheus_layer, metric_handle) = PrometheusMetricLayerBuilder::new()
@@ -22,7 +56,11 @@ fn main() {
             .build_pair();
 
         let router = dioxus::server::router(app)
-            .route("/metrics", get(move || async move { metric_handle.render() }))
+            .route(
+                "/metrics",
+                get(move || async move { metric_handle.render() })
+                    .layer(middleware::from_fn(requires_fly_io_source)),
+            )
             .layer(prometheus_layer);
 
         Ok(router)
