@@ -12,16 +12,32 @@ use components::toast::ToastProvider;
 use notica_component::NoticaApp;
 
 fn main() {
-    dioxus::launch(|| {
-        rsx! {
-            document::Stylesheet {
-                // Urls are relative to your Cargo.toml file
-                href: asset!("/assets/tailwind.css"),
-            }
-            document::Stylesheet { href: asset!("/assets/dx-components-theme.css") }
-            ToastProvider { Router::<Route> {} }
-        }
+    #[cfg(feature = "server")]
+    dioxus::serve(|| async move {
+        use axum::routing::get;
+        use axum_prometheus::PrometheusMetricLayerBuilder;
+
+        let (prometheus_layer, metric_handle) = PrometheusMetricLayerBuilder::new()
+            .with_default_metrics()
+            .build_pair();
+
+        let router = dioxus::server::router(app)
+            .route("/metrics", get(move || async move { metric_handle.render() }))
+            .layer(prometheus_layer);
+
+        Ok(router)
     });
+
+    #[cfg(not(feature = "server"))]
+    dioxus::launch(app);
+}
+
+fn app() -> Element {
+    rsx! {
+        document::Stylesheet { href: asset!("/assets/tailwind.css") }
+        document::Stylesheet { href: asset!("/assets/dx-components-theme.css") }
+        ToastProvider { Router::<Route> {} }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Routable)]
