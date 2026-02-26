@@ -1,4 +1,5 @@
 use crate::backend::kids::list_kids;
+use crate::backend::notes_history_query::NotesHistoryFilter;
 use crate::models::{KidSummary, NoteHistory};
 use crate::Route;
 use dioxus::prelude::*;
@@ -6,17 +7,11 @@ use dioxus_primitives::toast::{consume_toast, ToastOptions};
 
 #[server]
 pub async fn get_notes_history(
-    kid_id: Option<u32>,
-    date_from: Option<String>,
-    date_to: Option<String>,
-    cursor: Option<String>,
-    page_size: u8,
-    sort_by: Option<String>,
-    sort_order: Option<String>,
+    filter: NotesHistoryFilter,
 ) -> Result<crate::models::NoteHistoryResponse, ServerFnError> {
     use crate::backend::notes_history_query::NotesHistoryQuery;
 
-    let query = NotesHistoryQuery::new(kid_id, date_from, date_to, cursor, page_size, sort_by, sort_order);
+    let query = NotesHistoryQuery::new(filter);
     query.execute().await
 }
 
@@ -83,15 +78,15 @@ pub fn NotesHistoryPage() -> Element {
 
     // The notes resource - reactive to all filters and cursor
     let notes = use_resource(move || {
-        get_notes_history(
-            selected_kid_id(),
-            if date_from().is_empty() { None } else { Some(date_from()) },
-            if date_to().is_empty() { None } else { Some(date_to()) },
-            cursor(),
-            PAGE_SIZE,
-            Some(sort_by()),
-            Some(sort_order()),
-        )
+        get_notes_history(NotesHistoryFilter {
+            kid_id: selected_kid_id(),
+            date_from: if date_from().is_empty() { None } else { Some(date_from()) },
+            date_to: if date_to().is_empty() { None } else { Some(date_to()) },
+            cursor: cursor(),
+            page_size: PAGE_SIZE,
+            sort_by: Some(sort_by()),
+            sort_order: Some(sort_order()),
+        })
     });
 
     let toast = consume_toast();

@@ -35,6 +35,18 @@ impl NumberedNoteRow {
     }
 }
 
+/// Filter parameters for notes history queries
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct NotesHistoryFilter {
+    pub kid_id: Option<u32>,
+    pub date_from: Option<String>,
+    pub date_to: Option<String>,
+    pub cursor: Option<String>,
+    pub page_size: u8,
+    pub sort_by: Option<String>,
+    pub sort_order: Option<String>,
+}
+
 #[cfg(feature = "server")]
 pub struct NotesHistoryQuery {
     kid_id: Option<u32>,
@@ -48,32 +60,24 @@ pub struct NotesHistoryQuery {
 
 #[cfg(feature = "server")]
 impl NotesHistoryQuery {
-    pub fn new(
-        kid_id: Option<u32>,
-        date_from: Option<String>,
-        date_to: Option<String>,
-        cursor: Option<String>,
-        page_size: u8,
-        sort_by: Option<String>,
-        sort_order: Option<String>,
-    ) -> Self {
-        let final_page_size = std::cmp::min(page_size, *MAX_NOTES_HISTORY_PAGE_SIZE);
-        if final_page_size != page_size {
+    pub fn new(filter: NotesHistoryFilter) -> Self {
+        let final_page_size = std::cmp::min(filter.page_size, *MAX_NOTES_HISTORY_PAGE_SIZE);
+        if final_page_size != filter.page_size {
             tracing::warn!(
                 "Using default page size. Request {} exceeded system max {}",
-                page_size,
+                filter.page_size,
                 *MAX_NOTES_HISTORY_PAGE_SIZE
             );
         }
 
-        let sort_by = sort_by.unwrap_or_else(|| "created_at".to_string());
-        let sort_order = sort_order.unwrap_or_else(|| "desc".to_string());
+        let sort_by = filter.sort_by.unwrap_or_else(|| "created_at".to_string());
+        let sort_order = filter.sort_order.unwrap_or_else(|| "desc".to_string());
 
         Self {
-            kid_id,
-            date_from,
-            date_to,
-            cursor,
+            kid_id: filter.kid_id,
+            date_from: filter.date_from,
+            date_to: filter.date_to,
+            cursor: filter.cursor,
             page_size: final_page_size,
             sort_by,
             sort_order,
@@ -262,32 +266,33 @@ impl NotesHistoryQuery {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::test_db::setup_test_db;
 
     #[test]
     fn test_new_creates_query_with_defaults() {
-        let query = NotesHistoryQuery::new(None, None, None, None, 10, None, None);
+        let filter = NotesHistoryFilter::default();
+        let query = NotesHistoryQuery::new(filter);
 
         assert!(query.kid_id.is_none());
         assert!(query.date_from.is_none());
         assert!(query.date_to.is_none());
         assert!(query.cursor.is_none());
-        assert_eq!(query.page_size, 10);
+        assert_eq!(query.page_size, 0); // default u8 is 0
         assert_eq!(query.sort_by, "created_at");
         assert_eq!(query.sort_order, "desc");
     }
 
     #[test]
     fn test_new_with_all_params() {
-        let query = NotesHistoryQuery::new(
-            Some(1),
-            Some("2026-01-01".to_string()),
-            Some("2026-12-31".to_string()),
-            None,
-            20,
-            Some("kid_name".to_string()),
-            Some("asc".to_string()),
-        );
+        let filter = NotesHistoryFilter {
+            kid_id: Some(1),
+            date_from: Some("2026-01-01".to_string()),
+            date_to: Some("2026-12-31".to_string()),
+            cursor: None,
+            page_size: 20,
+            sort_by: Some("kid_name".to_string()),
+            sort_order: Some("asc".to_string()),
+        };
+        let query = NotesHistoryQuery::new(filter);
 
         assert_eq!(query.kid_id, Some(1));
         assert_eq!(query.date_from, Some("2026-01-01".to_string()));
@@ -299,7 +304,8 @@ mod tests {
 
     #[test]
     fn test_get_sort_clause_created_at_desc() {
-        let query = NotesHistoryQuery::new(None, None, None, None, 10, None, None);
+        let filter = NotesHistoryFilter::default();
+        let query = NotesHistoryQuery::new(filter);
         let clause = query.get_sort_clause();
 
         assert!(clause.contains("notes.created_at"));
@@ -308,8 +314,12 @@ mod tests {
 
     #[test]
     fn test_get_sort_clause_kid_name_asc() {
-        let query =
-            NotesHistoryQuery::new(None, None, None, None, 10, Some("kid_name".to_string()), Some("asc".to_string()));
+        let filter = NotesHistoryFilter {
+            sort_by: Some("kid_name".to_string()),
+            sort_order: Some("asc".to_string()),
+            ..Default::default()
+        };
+        let query = NotesHistoryQuery::new(filter);
         let clause = query.get_sort_clause();
 
         assert!(clause.contains("kids.name"));
@@ -321,7 +331,12 @@ mod tests {
         let db = setup_test_db().await;
         let db_static = Box::leak(Box::new(db));
 
-        let query = NotesHistoryQuery::new(Some(999), None, None, None, 10, None, None);
+        let filter = NotesHistoryFilter {
+            kid_id: Some(999),
+            page_size: 10,
+            ..Default::default()
+        };
+        let query = NotesHistoryQuery::new(filter);
         let result = query.execute_with_db(db_static).await.unwrap();
 
         assert_eq!(result.notes.len(), 0);
@@ -333,7 +348,11 @@ mod tests {
         let db = setup_test_db().await;
         let db_static = Box::leak(Box::new(db));
 
-        let query = NotesHistoryQuery::new(None, None, None, None, 10, None, None);
+        let filter = NotesHistoryFilter {
+            page_size: 10,
+            ..Default::default()
+        };
+        let query = NotesHistoryQuery::new(filter);
         let result = query.execute_with_db(db_static).await.unwrap();
 
         assert!(!result.notes.is_empty());
@@ -348,7 +367,12 @@ mod tests {
         let db = setup_test_db().await;
         let db_static = Box::leak(Box::new(db));
 
-        let query = NotesHistoryQuery::new(Some(1), None, None, None, 10, None, None);
+        let filter = NotesHistoryFilter {
+            kid_id: Some(1),
+            page_size: 10,
+            ..Default::default()
+        };
+        let query = NotesHistoryQuery::new(filter);
         let result = query.execute_with_db(db_static).await.unwrap();
 
         for note in &result.notes {
@@ -361,10 +385,18 @@ mod tests {
         let db = setup_test_db().await;
         let db_static = Box::leak(Box::new(db));
 
-        let query = NotesHistoryQuery::new(None, None, None, None, 5, None, None);
+        let filter = NotesHistoryFilter {
+            page_size: 5,
+            ..Default::default()
+        };
+        let query = NotesHistoryQuery::new(filter);
         let result = query.execute_with_db(db_static).await.unwrap();
 
         assert!(result.notes.len() <= 5);
         assert!(result.total_pages >= 1);
+    }
+
+    async fn setup_test_db() -> libsql::Connection {
+        crate::backend::test_db::setup_test_db().await
     }
 }
