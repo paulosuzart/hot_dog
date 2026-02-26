@@ -1,5 +1,6 @@
 use crate::backend::kids::{get_history_details, get_paged_history};
 use crate::models::KidHistory;
+use crate::utils::kid_color;
 use crate::Route;
 use dioxus::prelude::*;
 use dioxus_primitives::toast::{consume_toast, ToastOptions};
@@ -325,9 +326,10 @@ pub fn KidHistoryPage(kid_id: u32) -> Element {
                                 .to_uppercase()
                                 .to_string();
                             let name = response.name.clone();
+                            let color = kid_color(&name);
                             rsx! {
                                 div { style: "display: flex; align-items: center; gap: 0.75rem;",
-                                    div { style: "flex-shrink: 0; width: 2.5rem; height: 2.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.875rem; font-weight: 700; background-color: #6366f1;",
+                                    div { style: "flex-shrink: 0; width: 2.5rem; height: 2.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.875rem; font-weight: 700; background-color: {color};",
                                         "{initial}"
                                     }
                                     h1 { class: "text-2xl font-semibold text-gray-900", "{name}" }

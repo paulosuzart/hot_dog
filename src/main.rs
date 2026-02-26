@@ -2,6 +2,7 @@ mod backend;
 mod components;
 mod models;
 mod notica_component;
+mod utils;
 
 #[cfg(feature = "server")]
 use std::net::{IpAddr, SocketAddr};
