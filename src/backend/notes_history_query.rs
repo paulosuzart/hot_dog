@@ -35,7 +35,20 @@ impl NumberedNoteRow {
     }
 }
 
-/// Filter parameters for notes history queries
+/// Cursor for notes history pagination - carries all context needed for the next page.
+/// When provided, filter params are ignored and all values come from the cursor.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct NotesHistoryCursor {
+    pub row_num: u32,
+    pub kid_id: Option<u32>,
+    pub date_from: Option<String>,
+    pub date_to: Option<String>,
+    pub sort_by: String,
+    pub sort_order: String,
+    pub page_size: u8,
+}
+
+/// Filter parameters for notes history queries (used only for the first page)
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct NotesHistoryFilter {
     pub kid_id: Option<u32>,
@@ -52,7 +65,7 @@ pub struct NotesHistoryQuery {
     kid_id: Option<u32>,
     date_from: Option<String>,
     date_to: Option<String>,
-    cursor: Option<String>,
+    cursor_row_num: u32,
     page_size: u8,
     sort_by: String,
     sort_order: String,
@@ -61,8 +74,30 @@ pub struct NotesHistoryQuery {
 #[cfg(feature = "server")]
 impl NotesHistoryQuery {
     pub fn new(filter: NotesHistoryFilter) -> Self {
+        // If cursor is provided, decode it and use ALL values from cursor (ignore filter params)
+        // If no cursor, use the filter params for the first page
+        if let Some(cursor_str) = &filter.cursor {
+            match Self::decode_cursor(cursor_str) {
+                Ok(cursor) => {
+                    return Self {
+                        kid_id: cursor.kid_id,
+                        date_from: cursor.date_from,
+                        date_to: cursor.date_to,
+                        cursor_row_num: cursor.row_num,
+                        page_size: cursor.page_size,
+                        sort_by: cursor.sort_by,
+                        sort_order: cursor.sort_order,
+                    };
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to decode cursor, falling back to filter params: {}", e);
+                }
+            }
+        }
+
+        // No cursor (or failed decode) - use filter params for first page
         let final_page_size = std::cmp::min(filter.page_size, *MAX_NOTES_HISTORY_PAGE_SIZE);
-        if final_page_size != filter.page_size {
+        if final_page_size != filter.page_size && filter.page_size > 0 {
             tracing::warn!(
                 "Using default page size. Request {} exceeded system max {}",
                 filter.page_size,
@@ -77,11 +112,35 @@ impl NotesHistoryQuery {
             kid_id: filter.kid_id,
             date_from: filter.date_from,
             date_to: filter.date_to,
-            cursor: filter.cursor,
+            cursor_row_num: 0,
             page_size: final_page_size,
             sort_by,
             sort_order,
         }
+    }
+
+    fn decode_cursor(cursor_str: &str) -> Result<NotesHistoryCursor, ServerFnError> {
+        let decoded = URL_SAFE
+            .decode(cursor_str.as_bytes())
+            .map_err(|e| ServerFnError::new(format!("Failed to decode cursor: {}", e)))?;
+        let json_str = String::from_utf8(decoded)
+            .map_err(|e| ServerFnError::new(format!("Invalid UTF-8 in cursor: {}", e)))?;
+        serde_json::from_str(&json_str)
+            .map_err(|e| ServerFnError::new(format!("Invalid cursor JSON: {}", e)))?
+    }
+
+    fn encode_cursor(&self, row_num: u32) -> String {
+        let cursor = NotesHistoryCursor {
+            row_num,
+            kid_id: self.kid_id,
+            date_from: self.date_from.clone(),
+            date_to: self.date_to.clone(),
+            sort_by: self.sort_by.clone(),
+            sort_order: self.sort_order.clone(),
+            page_size: self.page_size,
+        };
+        let json = serde_json::to_string(&cursor).unwrap();
+        URL_SAFE.encode(json.as_bytes())
     }
 
     fn get_sort_clause(&self) -> String {
@@ -137,13 +196,9 @@ impl NotesHistoryQuery {
         if notes.len() > self.page_size as usize {
             // Discard the extra "peek" item
             notes.pop();
-            // Cursor encodes the row_num of the last item in the current page
+            // Cursor encodes all context needed for the next page
             let last_in_page = notes.last().unwrap();
-            let cursor_str = format!(
-                "{}|{}|{}",
-                last_in_page.row_num, self.sort_by, self.sort_order
-            );
-            Some(URL_SAFE.encode(cursor_str.as_bytes()))
+            Some(self.encode_cursor(last_in_page.row_num))
         } else {
             None
         }
@@ -186,32 +241,13 @@ impl NotesHistoryQuery {
                 t.total_count
             FROM all_notes n
             CROSS JOIN total_counts t
-            WHERE n.row_num > COALESCE(:cursor_row_num, 0)
+            WHERE n.row_num > :cursor_row_num
             {sort_clause}
             LIMIT :limit
             "#
         );
 
         tracing::debug!("SQL fetch_notes: {}", query);
-
-        let cursor_row_num = match &self.cursor {
-            Some(c) => {
-                let decoded = URL_SAFE
-                    .decode(c)
-                    .map_err(|e| ServerFnError::new(format!("Failed to decode cursor: {}", e)))?;
-                let cursor_str = String::from_utf8(decoded)
-                    .map_err(|e| ServerFnError::new(format!("Invalid UTF-8 in cursor: {}", e)))?;
-                let parts: Vec<&str> = cursor_str.split('|').collect();
-                if parts.len() >= 1 {
-                    parts[0]
-                        .parse::<u32>()
-                        .map_err(|e| ServerFnError::new(format!("Invalid cursor row_num: {}", e)))?
-                } else {
-                    0
-                }
-            }
-            None => 0,
-        };
 
         let date_from = self.date_from.clone().unwrap_or_default();
         let date_to = self.date_to.clone().unwrap_or_default();
@@ -231,7 +267,7 @@ impl NotesHistoryQuery {
                 ":kid_id": kid_id_param,
                 ":date_from": date_from_param,
                 ":date_to": date_to_param,
-                ":cursor_row_num": cursor_row_num,
+                ":cursor_row_num": self.cursor_row_num,
             })
             .await
             .map_err(|e| ServerFnError::new(e.to_string()))?;
@@ -275,14 +311,14 @@ mod tests {
         assert!(query.kid_id.is_none());
         assert!(query.date_from.is_none());
         assert!(query.date_to.is_none());
-        assert!(query.cursor.is_none());
+        assert_eq!(query.cursor_row_num, 0);
         assert_eq!(query.page_size, 0); // default u8 is 0
         assert_eq!(query.sort_by, "created_at");
         assert_eq!(query.sort_order, "desc");
     }
 
     #[test]
-    fn test_new_with_all_params() {
+    fn test_new_with_all_filter_params() {
         let filter = NotesHistoryFilter {
             kid_id: Some(1),
             date_from: Some("2026-01-01".to_string()),
@@ -297,7 +333,45 @@ mod tests {
         assert_eq!(query.kid_id, Some(1));
         assert_eq!(query.date_from, Some("2026-01-01".to_string()));
         assert_eq!(query.date_to, Some("2026-12-31".to_string()));
+        assert_eq!(query.cursor_row_num, 0);
         assert_eq!(query.page_size, 20);
+        assert_eq!(query.sort_by, "kid_name");
+        assert_eq!(query.sort_order, "asc");
+    }
+
+    #[test]
+    fn test_new_uses_cursor_over_filter_params() {
+        // Create a cursor with different values than the filter
+        let cursor = NotesHistoryCursor {
+            row_num: 50,
+            kid_id: Some(2),
+            date_from: Some("2025-01-01".to_string()),
+            date_to: Some("2025-12-31".to_string()),
+            sort_by: "kid_name".to_string(),
+            sort_order: "asc".to_string(),
+            page_size: 15,
+        };
+        let json = serde_json::to_string(&cursor).unwrap();
+        let cursor_str = URL_SAFE.encode(json.as_bytes());
+
+        // Filter has different values, but they should be ignored
+        let filter = NotesHistoryFilter {
+            kid_id: Some(1),
+            date_from: Some("2026-01-01".to_string()),
+            date_to: Some("2026-12-31".to_string()),
+            cursor: Some(cursor_str),
+            page_size: 20,
+            sort_by: Some("created_at".to_string()),
+            sort_order: Some("desc".to_string()),
+        };
+        let query = NotesHistoryQuery::new(filter);
+
+        // Values should come from cursor, not filter
+        assert_eq!(query.kid_id, Some(2));
+        assert_eq!(query.date_from, Some("2025-01-01".to_string()));
+        assert_eq!(query.date_to, Some("2025-12-31".to_string()));
+        assert_eq!(query.cursor_row_num, 50);
+        assert_eq!(query.page_size, 15);
         assert_eq!(query.sort_by, "kid_name");
         assert_eq!(query.sort_order, "asc");
     }
@@ -324,6 +398,32 @@ mod tests {
 
         assert!(clause.contains("kids.name"));
         assert!(clause.contains("ASC"));
+    }
+
+    #[test]
+    fn test_encode_decode_cursor_roundtrip() {
+        let cursor = NotesHistoryCursor {
+            row_num: 42,
+            kid_id: Some(3),
+            date_from: Some("2026-01-15".to_string()),
+            date_to: Some("2026-02-20".to_string()),
+            sort_by: "kid_name".to_string(),
+            sort_order: "asc".to_string(),
+            page_size: 25,
+        };
+        
+        let json = serde_json::to_string(&cursor).unwrap();
+        let encoded = URL_SAFE.encode(json.as_bytes());
+        
+        let decoded = NotesHistoryQuery::decode_cursor(&encoded).unwrap();
+        
+        assert_eq!(decoded.row_num, 42);
+        assert_eq!(decoded.kid_id, Some(3));
+        assert_eq!(decoded.date_from, Some("2026-01-15".to_string()));
+        assert_eq!(decoded.date_to, Some("2026-02-20".to_string()));
+        assert_eq!(decoded.sort_by, "kid_name");
+        assert_eq!(decoded.sort_order, "asc");
+        assert_eq!(decoded.page_size, 25);
     }
 
     #[tokio::test]
@@ -394,6 +494,40 @@ mod tests {
 
         assert!(result.notes.len() <= 5);
         assert!(result.total_pages >= 1);
+    }
+
+    #[tokio::test]
+    async fn test_cursor_carries_filter_context() {
+        let db = setup_test_db().await;
+        let db_static = Box::leak(Box::new(db));
+
+        // First page with filter
+        let filter = NotesHistoryFilter {
+            kid_id: Some(1),
+            page_size: 2,
+            sort_by: Some("created_at".to_string()),
+            sort_order: Some("desc".to_string()),
+            ..Default::default()
+        };
+        let query = NotesHistoryQuery::new(filter);
+        let result = query.execute_with_db(db_static).await.unwrap();
+
+        if let Some(cursor) = result.cursor {
+            // Use cursor with DIFFERENT filter params - they should be ignored
+            let filter2 = NotesHistoryFilter {
+                kid_id: Some(999), // This should be ignored
+                page_size: 999,    // This should be ignored
+                cursor: Some(cursor),
+                ..Default::default()
+            };
+            let query2 = NotesHistoryQuery::new(filter2);
+            let result2 = query2.execute_with_db(db_static).await.unwrap();
+
+            // Should still get kid_id=1 results because cursor carries the context
+            for note in &result2.notes {
+                assert_eq!(note.kid_id, 1);
+            }
+        }
     }
 
     async fn setup_test_db() -> libsql::Connection {
