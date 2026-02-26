@@ -131,3 +131,21 @@ pub struct NoteDetails {
     pub quantity: i32,
     pub created_at: NaiveDateTime,
 }
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct NoteHistory {
+    pub id: i64,
+    pub kid_id: u32,
+    pub kid_name: String,
+    pub quantity: i32,
+    pub created_at: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct NoteHistoryResponse {
+    pub notes: Vec<NoteHistory>,
+    pub cursor: Option<String>,
+    pub total_count: u32,
+    pub current_page: u32,
+    pub total_pages: u32,
+}
