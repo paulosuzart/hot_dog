@@ -25,7 +25,8 @@ primary_region = 'fra'
   cpus = 1
   memory_mb = 1024
 
-[metrics]
-port = 9090
-path = "/metrics"
-processes = ["app"]
+# Disabled for now to avoid a always on machine
+# [metrics]
+# port = 9090
+# path = "/metrics"
+# processes = ["app"]
