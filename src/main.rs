@@ -6,7 +6,6 @@ mod utils;
 
 #[cfg(feature = "server")]
 use std::net::{IpAddr, SocketAddr};
-use std::sync::Arc;
 
 #[cfg(feature = "server")]
 use axum::extract::ConnectInfo;
@@ -19,6 +18,7 @@ use dioxus::prelude::*;
 
 use components::about::AboutPage;
 use components::kid_history::KidHistoryPage;
+use components::notes_history::NotesHistoryPage;
 use components::settings::SettingsPage;
 use components::toast::ToastProvider;
 use notica_component::NoticaApp;
@@ -80,6 +80,8 @@ pub enum Route {
     AboutView,
     #[route("/kid/:id")]
     KidHistory { id: u32 },
+    #[route("/history")]
+    NotesHistoryView,
 }
 
 #[component]
@@ -115,6 +117,17 @@ fn KidHistory(id: u32) -> Element {
         div { style: "min-height: 100vh; background-color: #f3f4f6;",
             div { style: "max-width: 520px; margin: 0 auto; padding: 2rem 1rem;",
                 KidHistoryPage { kid_id: id }
+            }
+        }
+    }
+}
+
+#[component]
+fn NotesHistoryView() -> Element {
+    rsx! {
+        div { style: "min-height: 100vh; background-color: #f3f4f6;",
+            div { style: "max-width: 720px; margin: 0 auto; padding: 2rem 1rem;",
+                NotesHistoryPage {}
             }
         }
     }
