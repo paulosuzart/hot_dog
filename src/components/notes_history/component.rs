@@ -1,6 +1,6 @@
 use crate::backend::kids::list_kids;
 use crate::backend::notes_history_query::NotesHistoryFilter;
-use crate::models::{KidSummary, NoteHistory};
+use crate::models::NoteHistory;
 use crate::Route;
 use dioxus::prelude::*;
 use dioxus_primitives::toast::{consume_toast, ToastOptions};
@@ -77,7 +77,7 @@ pub fn NotesHistoryPage() -> Element {
     let mut cursor_stack = use_signal(|| vec![None::<String>]);
 
     // The notes resource - reactive to all filters and cursor
-    let notes = use_resource(move || {
+    let mut notes = use_resource(move || {
         get_notes_history(NotesHistoryFilter {
             kid_id: selected_kid_id(),
             date_from: if date_from().is_empty() { None } else { Some(date_from()) },
@@ -121,7 +121,7 @@ pub fn NotesHistoryPage() -> Element {
         notes.restart();
     };
 
-    let toggle_sort = move |column: String| {
+    let mut toggle_sort = move |column: String| {
         let current_column = sort_by();
         if current_column == column {
             // Toggle order
