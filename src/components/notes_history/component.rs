@@ -22,14 +22,22 @@ fn NoteRow(note: NoteHistory, show_kid: bool) -> Element {
     } else {
         format!("{}", note.quantity)
     };
-    let qty_bg = if note.quantity >= 0 { "#dcfce7" } else { "#fee2e2" };
-    let qty_color = if note.quantity >= 0 { "#16a34a" } else { "#dc2626" };
+    let qty_bg = if note.quantity >= 0 {
+        "#dcfce7"
+    } else {
+        "#fee2e2"
+    };
+    let qty_color = if note.quantity >= 0 {
+        "#16a34a"
+    } else {
+        "#dc2626"
+    };
 
     rsx! {
         tr {
             class: "note-row",
             style: "border-bottom: 1px solid #f3f4f6; transition: background-color 0.15s;",
-            
+
             if show_kid {
                 td {
                     style: "padding: 0.75rem 1rem; color: #9ca3af; font-size: 0.875rem; font-family: monospace;",
@@ -40,12 +48,12 @@ fn NoteRow(note: NoteHistory, show_kid: bool) -> Element {
                     "{note.kid_name}"
                 }
             }
-            
+
             td {
                 style: "padding: 0.75rem 1rem; color: #6b7280; font-size: 0.875rem;",
                 "{note.created_at}"
             }
-            
+
             td {
                 style: "padding: 0.75rem 1rem;",
                 span {
@@ -62,16 +70,16 @@ const PAGE_SIZE: u8 = 20;
 #[component]
 pub fn NotesHistoryPage() -> Element {
     let kids_resource = use_resource(list_kids);
-    
+
     // Filter state
     let mut selected_kid_id = use_signal(|| None::<u32>);
     let mut date_from = use_signal(|| String::new());
     let mut date_to = use_signal(|| String::new());
-    
+
     // Sort state
     let mut sort_by = use_signal(|| "created_at".to_string());
     let mut sort_order = use_signal(|| "desc".to_string());
-    
+
     // Pagination state
     let mut current_page = use_signal(|| 1usize);
     let mut total_pages = use_signal(|| 1usize);
@@ -84,8 +92,16 @@ pub fn NotesHistoryPage() -> Element {
     let mut notes = use_resource(move || {
         get_notes_history(NotesHistoryFilter {
             kid_id: selected_kid_id(),
-            date_from: if date_from().is_empty() { None } else { Some(date_from()) },
-            date_to: if date_to().is_empty() { None } else { Some(date_to()) },
+            date_from: if date_from().is_empty() {
+                None
+            } else {
+                Some(date_from())
+            },
+            date_to: if date_to().is_empty() {
+                None
+            } else {
+                Some(date_to())
+            },
             cursor: cursor(),
             page_size: PAGE_SIZE,
             sort_by: Some(sort_by()),
@@ -129,7 +145,11 @@ pub fn NotesHistoryPage() -> Element {
         let current_column = sort_by();
         if current_column == column {
             // Toggle order
-            let new_order = if sort_order() == "desc" { "asc" } else { "desc" };
+            let new_order = if sort_order() == "desc" {
+                "asc"
+            } else {
+                "desc"
+            };
             sort_order.set(new_order.to_string());
         } else {
             sort_by.set(column);
@@ -174,7 +194,7 @@ pub fn NotesHistoryPage() -> Element {
             div { style: "margin-bottom: 1.5rem; border-radius: 0.75rem; border: 1px solid #e5e7eb; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.05); overflow: hidden;",
                 div { style: "padding: 1.25rem;",
                     h2 { class: "text-sm font-semibold text-gray-700 mb-3", "Filters" }
-                    
+
                     div { style: "display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;",
                         // Kid filter
                         div {
@@ -250,10 +270,10 @@ pub fn NotesHistoryPage() -> Element {
                 if total_count() > 0 {
                     div { style: "display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 1rem; border-bottom: 1px solid #e5e7eb; background: #f9fafb;",
                         button {
-                            style: if current_page() == 1 { 
-                                "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db;" 
-                            } else { 
-                                "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #374151;" 
+                            style: if current_page() == 1 {
+                                "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db;"
+                            } else {
+                                "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #374151;"
                             },
                             disabled: current_page() == 1,
                             onclick: move |_| {
@@ -272,10 +292,10 @@ pub fn NotesHistoryPage() -> Element {
                         }
 
                         button {
-                            style: if !has_next() { 
-                                "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db;" 
-                            } else { 
-                                "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #374151;" 
+                            style: if !has_next() {
+                                "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: not-allowed; color: #d1d5db;"
+                            } else {
+                                "padding: 0.375rem 0.75rem; font-size: 0.875rem; border-radius: 0.5rem; border: 1px solid #e5e7eb; background: white; cursor: pointer; color: #374151;"
                             },
                             disabled: !has_next(),
                             onclick: move |_| {
@@ -302,7 +322,7 @@ pub fn NotesHistoryPage() -> Element {
                                 onclick: move |_| toggle_sort("kid_name".to_string()),
                                 span { "Kid " }
                                 if sort_by() == "kid_name" {
-                                    span { 
+                                    span {
                                         style: "margin-left: 0.25rem;",
                                         if sort_order() == "asc" { "↑" } else { "↓" }
                                     }
@@ -313,7 +333,7 @@ pub fn NotesHistoryPage() -> Element {
                                 onclick: move |_| toggle_sort("created_at".to_string()),
                                 span { "Date " }
                                 if sort_by() == "created_at" {
-                                    span { 
+                                    span {
                                         style: "margin-left: 0.25rem;",
                                         if sort_order() == "asc" { "↑" } else { "↓" }
                                     }

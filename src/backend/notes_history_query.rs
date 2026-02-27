@@ -90,7 +90,10 @@ impl NotesHistoryQuery {
                     };
                 }
                 Err(e) => {
-                    tracing::warn!("Failed to decode cursor, falling back to filter params: {}", e);
+                    tracing::warn!(
+                        "Failed to decode cursor, falling back to filter params: {}",
+                        e
+                    );
                 }
             }
         }
@@ -148,7 +151,11 @@ impl NotesHistoryQuery {
             "kid_name" => "kids.name",
             "created_at" | _ => "notes.created_at",
         };
-        let sort_dir = if self.sort_order == "asc" { "ASC" } else { "DESC" };
+        let sort_dir = if self.sort_order == "asc" {
+            "ASC"
+        } else {
+            "DESC"
+        };
         format!("ORDER BY {} {}", sort_column, sort_dir)
     }
 
@@ -157,7 +164,11 @@ impl NotesHistoryQuery {
             "kid_name" => "n.kid_name",
             "created_at" | _ => "n.created_at",
         };
-        let sort_dir = if self.sort_order == "asc" { "ASC" } else { "DESC" };
+        let sort_dir = if self.sort_order == "asc" {
+            "ASC"
+        } else {
+            "DESC"
+        };
         format!("ORDER BY {} {}", sort_column, sort_dir)
     }
 
@@ -268,8 +279,16 @@ impl NotesHistoryQuery {
             .map_err(|e| ServerFnError::new(e.to_string()))?;
 
         let kid_id_param = self.kid_id.map(|id| id as i64);
-        let date_from_param = if date_from.is_empty() { None } else { Some(date_from) };
-        let date_to_param = if date_to.is_empty() { None } else { Some(date_to) };
+        let date_from_param = if date_from.is_empty() {
+            None
+        } else {
+            Some(date_from)
+        };
+        let date_to_param = if date_to.is_empty() {
+            None
+        } else {
+            Some(date_to)
+        };
 
         let mut rows = stm
             .query(libsql::named_params! {
@@ -421,12 +440,12 @@ mod tests {
             sort_order: "asc".to_string(),
             page_size: 25,
         };
-        
+
         let json = serde_json::to_string(&cursor).unwrap();
         let encoded = URL_SAFE.encode(json.as_bytes());
-        
+
         let decoded = NotesHistoryQuery::decode_cursor(&encoded).unwrap();
-        
+
         assert_eq!(decoded.row_num, 42);
         assert_eq!(decoded.kid_id, Some(3));
         assert_eq!(decoded.date_from, Some("2026-01-15".to_string()));
@@ -526,7 +545,7 @@ mod tests {
             // Use cursor with DIFFERENT filter params - they should be ignored
             let filter2 = NotesHistoryFilter {
                 kid_id: Some(999), // This should be ignored
-                page_size: 100,   // This should be ignored
+                page_size: 100,    // This should be ignored
                 cursor: Some(cursor),
                 ..Default::default()
             };
