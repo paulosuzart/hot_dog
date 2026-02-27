@@ -125,8 +125,8 @@ impl NotesHistoryQuery {
             .map_err(|e| ServerFnError::new(format!("Failed to decode cursor: {}", e)))?;
         let json_str = String::from_utf8(decoded)
             .map_err(|e| ServerFnError::new(format!("Invalid UTF-8 in cursor: {}", e)))?;
-        serde_json::from_str(&json_str)
-            .map_err(|e| ServerFnError::new(format!("Invalid cursor JSON: {}", e)))?
+        Ok(serde_json::from_str::<NotesHistoryCursor>(&json_str)
+            .map_err(|e| ServerFnError::new(format!("Invalid cursor JSON: {}", e)))?)
     }
 
     fn encode_cursor(&self, row_num: u32) -> String {
@@ -143,10 +143,19 @@ impl NotesHistoryQuery {
         URL_SAFE.encode(json.as_bytes())
     }
 
-    fn get_sort_clause(&self) -> String {
+    fn get_sort_clause_for_row_number(&self) -> String {
         let sort_column = match self.sort_by.as_str() {
             "kid_name" => "kids.name",
             "created_at" | _ => "notes.created_at",
+        };
+        let sort_dir = if self.sort_order == "asc" { "ASC" } else { "DESC" };
+        format!("ORDER BY {} {}", sort_column, sort_dir)
+    }
+
+    fn get_sort_clause_for_outer_query(&self) -> String {
+        let sort_column = match self.sort_by.as_str() {
+            "kid_name" => "n.kid_name",
+            "created_at" | _ => "n.created_at",
         };
         let sort_dir = if self.sort_order == "asc" { "ASC" } else { "DESC" };
         format!("ORDER BY {} {}", sort_column, sort_dir)
@@ -209,7 +218,8 @@ impl NotesHistoryQuery {
         &self,
         conn: &'static libsql::Connection,
     ) -> Result<(Vec<NumberedNoteRow>, u32), ServerFnError> {
-        let sort_clause = self.get_sort_clause();
+        let sort_clause_inner = self.get_sort_clause_for_row_number();
+        let sort_clause_outer = self.get_sort_clause_for_outer_query();
 
         let query = format!(
             r#"
@@ -220,7 +230,7 @@ impl NotesHistoryQuery {
                     kids.name as kid_name,
                     notes.quantity,
                     notes.created_at,
-                    ROW_NUMBER() OVER ({sort_clause}) as row_num
+                    ROW_NUMBER() OVER ({sort_clause_inner}) as row_num
                 FROM notes
                 JOIN kids ON notes.kid_id = kids.id
                 WHERE 1=1
@@ -242,7 +252,7 @@ impl NotesHistoryQuery {
             FROM all_notes n
             CROSS JOIN total_counts t
             WHERE n.row_num > :cursor_row_num
-            {sort_clause}
+            {sort_clause_outer}
             LIMIT :limit
             "#
         );
@@ -380,7 +390,7 @@ mod tests {
     fn test_get_sort_clause_created_at_desc() {
         let filter = NotesHistoryFilter::default();
         let query = NotesHistoryQuery::new(filter);
-        let clause = query.get_sort_clause();
+        let clause = query.get_sort_clause_for_row_number();
 
         assert!(clause.contains("notes.created_at"));
         assert!(clause.contains("DESC"));
@@ -394,7 +404,7 @@ mod tests {
             ..Default::default()
         };
         let query = NotesHistoryQuery::new(filter);
-        let clause = query.get_sort_clause();
+        let clause = query.get_sort_clause_for_row_number();
 
         assert!(clause.contains("kids.name"));
         assert!(clause.contains("ASC"));
@@ -516,7 +526,7 @@ mod tests {
             // Use cursor with DIFFERENT filter params - they should be ignored
             let filter2 = NotesHistoryFilter {
                 kid_id: Some(999), // This should be ignored
-                page_size: 999,    // This should be ignored
+                page_size: 100,   // This should be ignored
                 cursor: Some(cursor),
                 ..Default::default()
             };

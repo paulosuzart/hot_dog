@@ -32,6 +32,10 @@ fn NoteRow(note: NoteHistory, show_kid: bool) -> Element {
             
             if show_kid {
                 td {
+                    style: "padding: 0.75rem 1rem; color: #9ca3af; font-size: 0.875rem; font-family: monospace;",
+                    "id: {note.kid_id}"
+                }
+                td {
                     style: "padding: 0.75rem 1rem; font-weight: 500; color: #374151;",
                     "{note.kid_name}"
                 }
@@ -57,7 +61,7 @@ const PAGE_SIZE: u8 = 20;
 
 #[component]
 pub fn NotesHistoryPage() -> Element {
-    let mut kids_resource = use_resource(list_kids);
+    let kids_resource = use_resource(list_kids);
     
     // Filter state
     let mut selected_kid_id = use_signal(|| None::<u32>);
@@ -184,13 +188,13 @@ pub fn NotesHistoryPage() -> Element {
                                             selected_kid_id.set(if val.is_empty() { None } else { val.parse().ok() });
                                         },
                                         option { value: "", "All Kids" }
-                                        for kid in kids.iter() {
-                                            option {
-                                                value: "{kid.id}",
-                                                selected: selected_kid_id() == Some(kid.id),
-                                                "{kid.name}"
-                                            }
-                                        }
+                                         for kid in kids.iter() {
+                                             option {
+                                                 value: "{kid.id}",
+                                                 selected: selected_kid_id() == Some(kid.id),
+                                                 "id: {kid.id} - {kid.name}"
+                                             }
+                                         }
                                     }
                                 },
                                 _ => rsx! {
@@ -290,6 +294,10 @@ pub fn NotesHistoryPage() -> Element {
                         style: "background: #f9fafb;",
                         tr {
                             th {
+                                style: "padding: 0.75rem 1rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;",
+                                "Id"
+                            }
+                            th {
                                 style: "padding: 0.75rem 1rem; text-align: left; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; user-select: none;",
                                 onclick: move |_| toggle_sort("kid_name".to_string()),
                                 span { "Kid " }
@@ -322,7 +330,7 @@ pub fn NotesHistoryPage() -> Element {
                             None => rsx! {
                                 tr {
                                     td {
-                                        colspan: 3,
+                                        colspan: 4,
                                         style: "padding: 2rem; text-align: center; color: #9ca3af;",
                                         "Loading..."
                                     }
@@ -331,7 +339,7 @@ pub fn NotesHistoryPage() -> Element {
                             Some(Ok(response)) if response.notes.is_empty() => rsx! {
                                 tr {
                                     td {
-                                        colspan: 3,
+                                        colspan: 4,
                                         style: "padding: 3rem; text-align: center;",
                                         div {
                                             style: "color: #9ca3af;",
@@ -352,7 +360,7 @@ pub fn NotesHistoryPage() -> Element {
                             Some(Err(_)) => rsx! {
                                 tr {
                                     td {
-                                        colspan: 3,
+                                        colspan: 4,
                                         style: "padding: 2rem; text-align: center; color: #ef4444;",
                                         "Failed to load notes"
                                     }
