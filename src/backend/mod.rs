@@ -1,6 +1,7 @@
 pub mod history_details_query;
 pub mod history_query;
 pub mod kids;
+pub mod notes_history_query;
 pub mod turso;
 
 #[cfg(all(test, feature = "server"))]
@@ -22,5 +23,12 @@ pub mod constants {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(50)
+    });
+
+    pub const MAX_NOTES_HISTORY_PAGE_SIZE: LazyLock<u8> = LazyLock::new(|| {
+        env::var("HD_MAX_NOTES_HISTORY_PAGE_SIZE")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(20)
     });
 }

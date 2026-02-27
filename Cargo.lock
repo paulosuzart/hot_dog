@@ -2607,6 +2607,7 @@ dependencies = [
  "dioxus-primitives",
  "libsql",
  "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",

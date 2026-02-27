@@ -401,7 +401,10 @@ pub fn SettingsPage() -> Element {
                             h2 { class: "text-lg font-semibold text-gray-900", "History" }
                             p { class: "text-sm text-gray-400", style: "margin-top: 2px;", "View past notes and activity." }
                         }
-                        Button { variant: ButtonVariant::Secondary, "View History" }
+                        Link {
+                            to: Route::NotesHistoryView,
+                            Button { variant: ButtonVariant::Secondary, "View History" }
+                        }
                     }
                 }
 

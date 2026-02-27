@@ -1,0 +1,65 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  fmt-check:
+    name: Check formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Run cargo fmt
+        run: cargo fmt --all -- --check
+      - name: Show formatting differences if any
+        if: failure()
+        run: cargo fmt --all && git diff
+
+  test:
+    name: Run server tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+      - name: Run tests and capture output
+        id: test
+        run: |
+          cargo test --features server 2>&1 | tee test-output.txt
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo "TESTS_FAILED=true" >> $GITHUB_OUTPUT
+          else
+            echo "TESTS_FAILED=false" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+      - name: Upload test output as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-output
+          path: test-output.txt
+          retention-days: 7
+      - name: Fail if tests failed
+        run: exit 1
+        if: steps.test.outputs.TESTS_FAILED == 'true'
