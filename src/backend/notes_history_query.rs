@@ -176,12 +176,12 @@ impl NotesHistoryQuery {
         use crate::backend::turso::get_db;
 
         let conn = get_db().await;
-        self.execute_with_db(conn).await
+        self.execute_with_db(&conn).await
     }
 
     pub async fn execute_with_db(
         &self,
-        conn: &'static libsql::Connection,
+        conn: &libsql::Connection,
     ) -> Result<NoteHistoryResponse, ServerFnError> {
         let (mut notes, total_count) = self.fetch_notes(conn).await?;
 
@@ -227,7 +227,7 @@ impl NotesHistoryQuery {
     /// Fetches notes with filtering, sorting, and cursor-based pagination.
     async fn fetch_notes(
         &self,
-        conn: &'static libsql::Connection,
+        conn: &libsql::Connection,
     ) -> Result<(Vec<NumberedNoteRow>, u32), ServerFnError> {
         let sort_clause_inner = self.get_sort_clause_for_row_number();
         let sort_clause_outer = self.get_sort_clause_for_outer_query();
@@ -458,7 +458,6 @@ mod tests {
     #[tokio::test]
     async fn test_execute_returns_empty_for_no_data() {
         let db = setup_test_db().await;
-        let db_static = Box::leak(Box::new(db));
 
         let filter = NotesHistoryFilter {
             kid_id: Some(999),
@@ -466,7 +465,7 @@ mod tests {
             ..Default::default()
         };
         let query = NotesHistoryQuery::new(filter);
-        let result = query.execute_with_db(db_static).await.unwrap();
+        let result = query.execute_with_db(&db).await.unwrap();
 
         assert_eq!(result.notes.len(), 0);
         assert_eq!(result.total_count, 0);
@@ -475,14 +474,13 @@ mod tests {
     #[tokio::test]
     async fn test_execute_returns_notes_with_kid_name() {
         let db = setup_test_db().await;
-        let db_static = Box::leak(Box::new(db));
 
         let filter = NotesHistoryFilter {
             page_size: 10,
             ..Default::default()
         };
         let query = NotesHistoryQuery::new(filter);
-        let result = query.execute_with_db(db_static).await.unwrap();
+        let result = query.execute_with_db(&db).await.unwrap();
 
         assert!(!result.notes.is_empty());
         // All notes should have kid names
@@ -494,7 +492,6 @@ mod tests {
     #[tokio::test]
     async fn test_execute_filters_by_kid_id() {
         let db = setup_test_db().await;
-        let db_static = Box::leak(Box::new(db));
 
         let filter = NotesHistoryFilter {
             kid_id: Some(1),
@@ -502,7 +499,7 @@ mod tests {
             ..Default::default()
         };
         let query = NotesHistoryQuery::new(filter);
-        let result = query.execute_with_db(db_static).await.unwrap();
+        let result = query.execute_with_db(&db).await.unwrap();
 
         for note in &result.notes {
             assert_eq!(note.kid_id, 1);
@@ -512,14 +509,13 @@ mod tests {
     #[tokio::test]
     async fn test_execute_paginates_correctly() {
         let db = setup_test_db().await;
-        let db_static = Box::leak(Box::new(db));
 
         let filter = NotesHistoryFilter {
             page_size: 5,
             ..Default::default()
         };
         let query = NotesHistoryQuery::new(filter);
-        let result = query.execute_with_db(db_static).await.unwrap();
+        let result = query.execute_with_db(&db).await.unwrap();
 
         assert!(result.notes.len() <= 5);
         assert!(result.total_pages >= 1);
@@ -528,7 +524,6 @@ mod tests {
     #[tokio::test]
     async fn test_cursor_carries_filter_context() {
         let db = setup_test_db().await;
-        let db_static = Box::leak(Box::new(db));
 
         // First page with filter
         let filter = NotesHistoryFilter {
@@ -539,7 +534,7 @@ mod tests {
             ..Default::default()
         };
         let query = NotesHistoryQuery::new(filter);
-        let result = query.execute_with_db(db_static).await.unwrap();
+        let result = query.execute_with_db(&db).await.unwrap();
 
         if let Some(cursor) = result.cursor {
             // Use cursor with DIFFERENT filter params - they should be ignored
@@ -550,7 +545,7 @@ mod tests {
                 ..Default::default()
             };
             let query2 = NotesHistoryQuery::new(filter2);
-            let result2 = query2.execute_with_db(db_static).await.unwrap();
+            let result2 = query2.execute_with_db(&db).await.unwrap();
 
             // Should still get kid_id=1 results because cursor carries the context
             for note in &result2.notes {

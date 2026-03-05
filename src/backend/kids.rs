@@ -104,7 +104,7 @@ impl SummaryRow {
         Kid {
             id: self.kid_id,
             name: self.name.clone(),
-            count: self.total.unwrap_or(0) as i8,
+            count: self.total.unwrap_or(0),
             latest_note: self
                 .latest_note
                 .as_deref()
