@@ -85,7 +85,7 @@ pub struct GetKidsResponse {
 pub struct Kid {
     pub name: String,
     pub id: u32,
-    pub count: i8,
+    pub count: i32,
     pub latest_note: Option<NaiveDateTime>,
 }
 

@@ -89,12 +89,12 @@ impl KidHistoryQuery {
         use crate::backend::turso::get_db;
 
         let conn = get_db().await;
-        self.execute_with_db(conn).await
+        self.execute_with_db(&conn).await
     }
 
     pub async fn execute_with_db(
         &self,
-        conn: &'static libsql::Connection,
+        conn: &libsql::Connection,
     ) -> Result<KidHistoryResponse, ServerFnError> {
         let cursor_clause = self.cursor_clause();
         let grain_format = self.granularity.grain_format();
@@ -150,7 +150,7 @@ impl KidHistoryQuery {
     /// Fetches the periods for the given kid_id, cursor and granularity with window functions.
     async fn fetch_periods(
         &self,
-        conn: &'static libsql::Connection,
+        conn: &libsql::Connection,
         _cursor_clause: &str,
     ) -> Result<(Vec<NumberedHistoryRow>, u32), ServerFnError> {
         let grain_format = self.granularity.grain_format();
@@ -274,7 +274,6 @@ mod tests {
     use super::*;
     use crate::backend::test_db::{setup_test_db, setup_two_period_db};
     use chrono::{Duration, Utc};
-    use std::boxed::Box;
     use std::str::FromStr;
 
     // ============================================
@@ -456,10 +455,9 @@ mod tests {
     #[tokio::test]
     async fn test_execute_returns_empty_history_for_no_data() {
         let db = setup_test_db().await;
-        let db_static = Box::leak(Box::new(db));
 
         let query = KidHistoryQuery::new(999, None, 10, Granularity::Daily);
-        let result = query.execute_with_db(db_static).await.unwrap();
+        let result = query.execute_with_db(&db).await.unwrap();
 
         assert_eq!(result.history.len(), 0);
         assert_eq!(result.total_count, 0);
@@ -471,10 +469,9 @@ mod tests {
     #[tokio::test]
     async fn test_execute_paginates_correctly() {
         let db = setup_test_db().await;
-        let db_static = Box::leak(Box::new(db));
 
         let query = KidHistoryQuery::new(1, None, 2, Granularity::Monthly);
-        let result = query.execute_with_db(db_static).await.unwrap();
+        let result = query.execute_with_db(&db).await.unwrap();
 
         assert_eq!(result.history.len(), 2);
         assert_eq!(result.total_count, 3);
@@ -486,7 +483,6 @@ mod tests {
     #[tokio::test]
     async fn test_execute_with_cursor_pagination() {
         let db = setup_test_db().await;
-        let db_static = Box::leak(Box::new(db));
 
         let now = Utc::now().naive_utc();
         let middle_month = (now - Duration::days(30)).format("%Y-%m").to_string();
@@ -497,7 +493,7 @@ mod tests {
         };
 
         let query = KidHistoryQuery::new(1, Some(cursor), 10, Granularity::Monthly);
-        let result = query.execute_with_db(db_static).await.unwrap();
+        let result = query.execute_with_db(&db).await.unwrap();
 
         assert_eq!(result.history.len(), 1);
         assert_eq!(result.total_count, 3);
@@ -509,10 +505,9 @@ mod tests {
     #[tokio::test]
     async fn test_execute_counts_total_correctly() {
         let db = setup_test_db().await;
-        let db_static = Box::leak(Box::new(db));
 
         let query = KidHistoryQuery::new(1, None, 10, Granularity::Monthly);
-        let result = query.execute_with_db(db_static).await.unwrap();
+        let result = query.execute_with_db(&db).await.unwrap();
 
         assert_eq!(result.total_count, 3);
         assert_eq!(result.total_pages, 1);
@@ -522,10 +517,9 @@ mod tests {
     #[tokio::test]
     async fn test_execute_returns_correct_kid_data() {
         let db = setup_test_db().await;
-        let db_static = Box::leak(Box::new(db));
 
         let query = KidHistoryQuery::new(1, None, 10, Granularity::Monthly);
-        let result = query.execute_with_db(db_static).await.unwrap();
+        let result = query.execute_with_db(&db).await.unwrap();
 
         assert_eq!(result.history.len(), 3);
         assert_eq!(result.history[0].name, "Alice");
@@ -537,10 +531,9 @@ mod tests {
     #[tokio::test]
     async fn test_execute_calculates_correct_counts() {
         let db = setup_test_db().await;
-        let db_static = Box::leak(Box::new(db));
 
         let query = KidHistoryQuery::new(1, None, 10, Granularity::Monthly);
-        let result = query.execute_with_db(db_static).await.unwrap();
+        let result = query.execute_with_db(&db).await.unwrap();
 
         let middle_month = &result.history[1];
         assert_eq!(middle_month.total, 1);
@@ -552,10 +545,9 @@ mod tests {
     #[tokio::test]
     async fn test_execute_calculates_pagination_from_row_number() {
         let db = setup_test_db().await;
-        let db_static = Box::leak(Box::new(db));
 
         let query = KidHistoryQuery::new(1, None, 1, Granularity::Monthly);
-        let result = query.execute_with_db(db_static).await.unwrap();
+        let result = query.execute_with_db(&db).await.unwrap();
 
         assert_eq!(result.history.len(), 1);
         assert_eq!(result.current_page, 1);
@@ -566,7 +558,6 @@ mod tests {
     #[tokio::test]
     async fn test_execute_second_page_correctly_identified() {
         let db = setup_test_db().await;
-        let db_static = Box::leak(Box::new(db));
 
         let now = Utc::now().naive_utc();
         let first_month = (now - Duration::days(10)).format("%Y-%m").to_string();
@@ -577,7 +568,7 @@ mod tests {
         };
 
         let query = KidHistoryQuery::new(1, Some(cursor), 1, Granularity::Monthly);
-        let result = query.execute_with_db(db_static).await.unwrap();
+        let result = query.execute_with_db(&db).await.unwrap();
 
         assert_eq!(result.history.len(), 1);
         assert_eq!(result.current_page, 2);
@@ -591,11 +582,10 @@ mod tests {
     #[tokio::test]
     async fn test_two_period_second_page_not_empty() {
         let db = setup_two_period_db().await;
-        let db_static = Box::leak(Box::new(db));
 
         // Sam (kid_id=1) has notes in exactly 2 months.
         let query1 = KidHistoryQuery::new(1, None, 1, Granularity::Monthly);
-        let page1 = query1.execute_with_db(db_static).await.unwrap();
+        let page1 = query1.execute_with_db(&db).await.unwrap();
 
         assert_eq!(page1.history.len(), 1, "page 1 should have 1 item");
         assert_eq!(page1.current_page, 1);
@@ -609,7 +599,7 @@ mod tests {
         let cursor2 = Cursor::from_str(page1.cursor.as_ref().unwrap())
             .expect("cursor from page 1 must parse");
         let query2 = KidHistoryQuery::new(1, Some(cursor2), 1, Granularity::Monthly);
-        let page2 = query2.execute_with_db(db_static).await.unwrap();
+        let page2 = query2.execute_with_db(&db).await.unwrap();
 
         assert_eq!(page2.history.len(), 1, "page 2 must not be empty");
         assert_eq!(page2.current_page, 2);
@@ -629,11 +619,10 @@ mod tests {
     #[tokio::test]
     async fn test_full_three_page_navigation() {
         let db = setup_test_db().await;
-        let db_static = Box::leak(Box::new(db));
 
         // Page 1
         let q1 = KidHistoryQuery::new(1, None, 1, Granularity::Monthly);
-        let p1 = q1.execute_with_db(db_static).await.unwrap();
+        let p1 = q1.execute_with_db(&db).await.unwrap();
 
         assert_eq!(p1.history.len(), 1);
         assert_eq!(p1.current_page, 1);
@@ -643,7 +632,7 @@ mod tests {
         // Page 2 — built from the cursor returned on page 1
         let c2 = Cursor::from_str(p1.cursor.as_ref().unwrap()).expect("page-1 cursor must parse");
         let q2 = KidHistoryQuery::new(1, Some(c2), 1, Granularity::Monthly);
-        let p2 = q2.execute_with_db(db_static).await.unwrap();
+        let p2 = q2.execute_with_db(&db).await.unwrap();
 
         assert_eq!(p2.history.len(), 1);
         assert_eq!(p2.current_page, 2);
@@ -654,7 +643,7 @@ mod tests {
         // Page 3 — built from the cursor returned on page 2
         let c3 = Cursor::from_str(p2.cursor.as_ref().unwrap()).expect("page-2 cursor must parse");
         let q3 = KidHistoryQuery::new(1, Some(c3), 1, Granularity::Monthly);
-        let p3 = q3.execute_with_db(db_static).await.unwrap();
+        let p3 = q3.execute_with_db(&db).await.unwrap();
 
         assert_eq!(p3.history.len(), 1);
         assert_eq!(p3.current_page, 3);
