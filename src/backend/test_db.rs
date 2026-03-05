@@ -45,9 +45,9 @@ pub async fn setup_test_db() -> Connection {
 
     let now = Utc::now().naive_utc();
 
-    // Kid 1: "Alice" – 3 positive notes in the most recent month,
-    //                   2 positive + 1 negative 30-38 days ago,
-    //                   4 positive ~60 days ago.
+    // Kid 1: "Alice" – 3 positive notes in the most recent month (March),
+    //                   2 positive + 1 negative in middle month (February),
+    //                   4 positive in oldest month (January).
     conn.execute(
         "INSERT INTO kids (name, created_at) VALUES (?1, ?2)",
         libsql::params!["Alice", now.format("%Y-%m-%d %H:%M:%S").to_string()],
@@ -55,51 +55,54 @@ pub async fn setup_test_db() -> Connection {
     .await
     .expect("Failed to insert Alice");
 
-    for i in 0..3i64 {
-        let t = (now - Duration::days(10 - i))
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string();
-        conn.execute(
-            "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, 1, ?1)",
-            libsql::params![t],
-        )
-        .await
-        .expect("Failed to insert Alice note");
-    }
-    for i in 0..2i64 {
-        let t = (now - Duration::days(30 + i * 3))
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string();
-        conn.execute(
-            "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, 1, ?1)",
-            libsql::params![t],
-        )
-        .await
-        .expect("Failed to insert Alice note");
-    }
-    let t = (now - Duration::days(38))
-        .format("%Y-%m-%d %H:%M:%S")
-        .to_string();
+    // March notes (3 positive)
     conn.execute(
-        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, -1, ?1)",
-        libsql::params![t],
-    )
-    .await
-    .expect("Failed to insert Alice note");
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, 1, '2026-03-05 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Alice note");
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, 1, '2026-03-10 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Alice note");
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, 1, '2026-03-15 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Alice note");
 
-    for i in 0..4i64 {
-        let t = (now - Duration::days(60 + i * 2))
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string();
-        conn.execute(
-            "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, 1, ?1)",
-            libsql::params![t],
-        )
-        .await
-        .expect("Failed to insert Alice note");
-    }
+    // February notes (2 positive + 1 negative)
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, 1, '2026-02-05 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Alice note");
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, 1, '2026-02-10 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Alice note");
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, -1, '2026-02-15 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Alice note");
 
-    // Kid 2: "Bob"
+    // January notes (4 positive)
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, 1, '2026-01-05 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Alice note");
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, 1, '2026-01-10 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Alice note");
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, 1, '2026-01-15 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Alice note");
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (1, 1, '2026-01-20 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Alice note");
+
+
+    // Kid 2: "Bob" – 5 notes in March, 2 notes in February
     conn.execute(
         "INSERT INTO kids (name, created_at) VALUES (?1, ?2)",
         libsql::params!["Bob", now.format("%Y-%m-%d %H:%M:%S").to_string()],
@@ -107,39 +110,47 @@ pub async fn setup_test_db() -> Connection {
     .await
     .expect("Failed to insert Bob");
 
-    for i in 0..5i64 {
-        let t = (now - Duration::days(20 - i))
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string();
-        conn.execute(
-            "INSERT INTO notes (kid_id, quantity, created_at) VALUES (2, 1, ?1)",
-            libsql::params![t],
-        )
-        .await
-        .expect("Failed to insert Bob note");
-    }
-    for i in 0..2i64 {
-        let t = (now - Duration::days(50 + i * 3))
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string();
-        conn.execute(
-            "INSERT INTO notes (kid_id, quantity, created_at) VALUES (2, 1, ?1)",
-            libsql::params![t],
-        )
-        .await
-        .expect("Failed to insert Bob note");
-    }
-    for i in 0..2i64 {
-        let t = (now - Duration::days(55 + i * 3))
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string();
-        conn.execute(
-            "INSERT INTO notes (kid_id, quantity, created_at) VALUES (2, -1, ?1)",
-            libsql::params![t],
-        )
-        .await
-        .expect("Failed to insert Bob note");
-    }
+    // March notes (5 positive)
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (2, 1, '2026-03-01 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Bob note");
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (2, 1, '2026-03-02 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Bob note");
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (2, 1, '2026-03-03 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Bob note");
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (2, 1, '2026-03-04 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Bob note");
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (2, 1, '2026-03-05 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Bob note");
+
+    // February notes (2 positive)
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (2, 1, '2026-02-01 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Bob note");
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (2, 1, '2026-02-04 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Bob note");
+
+    // January notes (2 negative)
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (2, -1, '2026-01-01 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Bob note");
+    conn.execute(
+        "INSERT INTO notes (kid_id, quantity, created_at) VALUES (2, -1, '2026-01-04 00:00:00')",
+        (),
+    ).await.expect("Failed to insert Bob note");
 
     conn
 }

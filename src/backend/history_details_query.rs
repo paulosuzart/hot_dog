@@ -116,11 +116,13 @@ impl HistoryDetailsRepository {
             )
         }
 
+        let max_notes_reached = result_len > *MAX_HISTORY_DETAIL_PAGE_SIZE;
+
         Ok(HistoryDetailResponse {
             kid_id: self.kid_id,
             notes: results,
-            needs_reload: result_len != self.expected_count,
-            max_notes_reached: result_len > *MAX_HISTORY_DETAIL_PAGE_SIZE,
+            needs_reload: !max_notes_reached && result_len != self.expected_count,
+            max_notes_reached,
         })
     }
 }
@@ -269,6 +271,10 @@ mod tests {
             *MAX_HISTORY_DETAIL_PAGE_SIZE,
             "should cap at {} notes",
             *MAX_HISTORY_DETAIL_PAGE_SIZE,
+        );
+        assert!(
+            !result.needs_reload,
+            "needs_reload should be false when cap is hit (even if count mismatch exists)"
         );
     }
 

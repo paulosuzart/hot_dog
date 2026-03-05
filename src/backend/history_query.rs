@@ -484,10 +484,8 @@ mod tests {
     async fn test_execute_with_cursor_pagination() {
         let db = setup_test_db().await;
 
-        let now = Utc::now().naive_utc();
-        let middle_month = (now - Duration::days(30)).format("%Y-%m").to_string();
         let cursor = Cursor {
-            grain_value: middle_month,
+            grain_value: "2026-02".to_string(),
             grain_format: "%Y-%m",
             granularity: Granularity::Monthly,
         };
@@ -559,10 +557,8 @@ mod tests {
     async fn test_execute_second_page_correctly_identified() {
         let db = setup_test_db().await;
 
-        let now = Utc::now().naive_utc();
-        let first_month = (now - Duration::days(10)).format("%Y-%m").to_string();
         let cursor = Cursor {
-            grain_value: first_month,
+            grain_value: "2026-03".to_string(),
             grain_format: "%Y-%m",
             granularity: Granularity::Monthly,
         };
